@@ -1,0 +1,79 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/arch/armv8/common
+  - bsps/../../../standalone/arch/armv8/aarch64
+  - bsps/../../../standalone/board/port
+  - bsps/../../../standalone/drivers/iomux/fiopad
+  - bsps/../../../standalone/drivers/mmc/fsdif
+  - bsps/../../../standalone/drivers/watchdog/fwdt
+
+install:
+- destination: ${BSP_INCLUDEDIR}
+  source:
+  - bsps/aarch64/phytium/include/bsp.h
+  - bsps/aarch64/phytium/include/tm27.h
+
+- destination: ${BSP_LIBDIR}
+  source:
+  - bsps/aarch64/phytium/start/linkcmds.phytium
+
+- destination: ${BSP_INCLUDEDIR}/bsp
+  source:
+  - bsps/aarch64/phytium/include/bsp/irq.h
+
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../drivers/port/fdrivers_port.h
+  - bsps/../../../drivers/port/fboard_port.h
+  - bsps/../../../drivers/port/debug_printf.h
+
+  - bsps/../../../standalone/arch/armv8/aarch64/faarch.h
+
+  - bsps/../../../standalone/common/fassert.h
+  - bsps/../../../standalone/common/ferror_code.h
+  - bsps/../../../standalone/common/fio.h
+  - bsps/../../../standalone/common/fkernel.h
+  - bsps/../../../standalone/common/ftypes.h
+
+links: []
+source:
+- bsps/aarch64/shared/cache/cache.c
+- bsps/aarch64/shared/mmu/mmu-setup.c
+- bsps/aarch64/shared/mmu/vmsav8-64.c
+- bsps/shared/dev/getentropy/getentropy-cpucounter.c
+- bsps/shared/dev/btimer/btimer-cpucounter.c
+- bsps/shared/dev/serial/arm-pl011.c
+- bsps/shared/irq/irq-default-handler.c
+- bsps/shared/start/bspfatal-default.c
+- bsps/shared/start/gettargethash-default.c
+- bsps/shared/start/sbrk.c
+- bsps/shared/start/stackalloc.c
+- bsps/shared/start/wkspaceinitone.c
+- bsps/shared/start/mallocinitmulti.c
+- bsps/shared/start/bspgetworkarea-default.c
+
+- bsps/aarch64/phytium/start/bspstart.c
+- bsps/aarch64/phytium/start/bspstarthooks.c
+- bsps/aarch64/phytium/start/bspstartmmu.c
+- bsps/aarch64/phytium/start/bspcpuinfo.c
+- bsps/aarch64/phytium/start/bspreset.c
+- bsps/aarch64/phytium/fdt/bsp_fdt.c
+- bsps/aarch64/phytium/console/console.c
+- bsps/shared/dev/serial/console-termios-init.c
+- bsps/shared/dev/serial/console-termios.c
+
+- bsps/../../../drivers/port/fdrivers_port.c
+- bsps/../../../drivers/port/fboard_port.c
+- bsps/../../../drivers/port/debug_uart.c
+- bsps/../../../drivers/port/debug_printf.c
+- bsps/../../../standalone/common/fassert.c
+type: build

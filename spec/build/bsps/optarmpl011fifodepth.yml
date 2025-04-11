@@ -15,6 +15,13 @@ default:
   value: 64
 - enabled-by: 
   - aarch64/raspberrypi4b
+  - aarch64/phytium_d2000_test
+  - aarch64/phytium_ft2004_dsk
+  - aarch64/phytium_pi
+  - aarch64/phytium_e2000d_demo
+  - aarch64/phytium_e2000q_demo
+  - aarch64/phytium_pd2308_demo
+  - aarch64/phytium_pd2408_testa
   value: 32
 description: |
   Set the size of UART FIFO

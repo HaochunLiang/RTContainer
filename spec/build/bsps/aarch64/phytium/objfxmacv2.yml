@@ -1,0 +1,34 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/msg
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/eth_ieee_reg.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_bd.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_bdring.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_common.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_hw.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_phy.h
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg.h
+links: []
+source:
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_bdring.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_common.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_debug.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_g.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_intr.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_phy.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg_sinit.c
+- bsps/../../../standalone/drivers/eth/fxmac_v2_0/fxmac_msg.c
+type: build

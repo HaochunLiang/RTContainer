@@ -1,0 +1,222 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
+
+/**
+ * @file
+ *
+ * @ingroup RTEMSBSPsAArch64Phytium
+ *
+ * @brief Core BSP definitions
+ */
+
+/*
+ * Copyright (C) 2025 Phytium Technology Co., Ltd.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+ #ifndef LIBBSP_AARCH64_PHYTIUM_BSP_H
+ #define LIBBSP_AARCH64_PHYTIUM_BSP_H
+ 
+ /**
+  * @addtogroup RTEMSBSPsAArch64
+  *
+  * @{
+  */
+ 
+ #include <bspopts.h>
+ 
+ #ifndef ASM
+ #include <bsp/default-initial-extension.h>
+ #include <bsp/start.h>
+ #endif
+ 
+ #if defined(PHYTIUM_BSP_TYPE_PHYTIUM_PI)
+ #include <soc/phytiumpi/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_E2000D_DEMO)
+ #include <soc/e2000d/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_E2000Q_DEMO)
+ #include <soc/e2000q/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_D2000_TEST)
+ #include <soc/d2000/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_FT2004_DSK)
+ #include <soc/ft2004/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_PD2308_DEMO)
+ #include <soc/pd2308/fparameters.h>
+ #elif defined(PHYTIUM_BSP_TYPE_PD2408_TESTA)
+ #include <soc/pd2408/fparameters.h>
+ #else
+ #error "Target unselected !!!"
+ #endif
+ 
+ #ifdef __cplusplus
+ extern "C" {
+ #endif /* __cplusplus */
+ 
+ /* definition of core information */
+ #ifdef CORE0_AFF
+ #define BSP_CORE0_AFF       CORE0_AFF
+ #endif
+ 
+ #ifdef CORE1_AFF
+ #define BSP_CORE1_AFF       CORE1_AFF
+ #endif
+ 
+ #ifdef CORE2_AFF
+ #define BSP_CORE2_AFF       CORE2_AFF
+ #endif
+ 
+ #ifdef CORE3_AFF
+ #define BSP_CORE3_AFF       CORE3_AFF
+ #endif
+ 
+ #ifdef CORE4_AFF
+ #define BSP_CORE4_AFF       CORE4_AFF
+ #endif
+ 
+ #ifdef CORE5_AFF
+ #define BSP_CORE5_AFF       CORE5_AFF
+ #endif
+ 
+ #ifdef CORE6_AFF
+ #define BSP_CORE6_AFF       CORE6_AFF
+ #endif
+ 
+ #ifdef CORE7_AFF
+ #define BSP_CORE7_AFF       CORE7_AFF
+ #endif
+ 
+ #define BSP_CORE_AFF_MASK   CORE_AFF_MASK
+ #define BSP_CORE_NUM        FCORE_NUM
+ 
+ #ifndef ASM
+ 
+ #define BSP_CPU_ON_USES_SMC
+ 
+ /* definition for interrupts */
+ #define BSP_SGI_INT_MAX     SGI_INT_MAX
+ #define BSP_PPI_INT_LAST    (SPI_START_INT_NUM - 1)
+ 
+ #define BSP_ARM_GIC_CPUIF_BASE  GICV3_BASE_ADDR
+ #define BSP_ARM_GIC_DIST_BASE   GICV3_DISTRIBUTOR_BASE_ADDR
+ #if defined(PHYTIUM_BSP_TYPE_E2000Q_DEMO) || defined(PHYTIUM_BSP_TYPE_PHYTIUM_PI)
+ #define BSP_ARM_GIC_RD0_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x80000U)
+ #define BSP_ARM_GIC_SGI0_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x90000U)
+ #define BSP_ARM_GIC_RD1_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xA0000U)
+ #define BSP_ARM_GIC_SGI1_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xB0000U)
+ #define BSP_ARM_GIC_RD2_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xC0000U)
+ #define BSP_ARM_GIC_SGI2_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xD0000U)
+ #define BSP_ARM_GIC_RD3_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xE0000U)
+ #define BSP_ARM_GIC_SGI3_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xF0000U)
+ #elif defined(PHYTIUM_BSP_TYPE_E2000D_DEMO)
+ #define BSP_ARM_GIC_RD0_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xC0000U)
+ #define BSP_ARM_GIC_SGI0_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xD0000U)
+ #define BSP_ARM_GIC_RD1_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xE0000U)
+ #define BSP_ARM_GIC_SGI1_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xF0000U)
+ #elif defined(PHYTIUM_BSP_TYPE_D2000_TEST)
+ #define BSP_ARM_GIC_RD0_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x100000U)
+ #define BSP_ARM_GIC_SGI0_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x110000U)
+ #define BSP_ARM_GIC_RD1_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x120000U)
+ #define BSP_ARM_GIC_SGI1_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x130000U)
+ #define BSP_ARM_GIC_RD2_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x140000U)
+ #define BSP_ARM_GIC_SGI2_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x150000U)
+ #define BSP_ARM_GIC_RD3_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x160000U)
+ #define BSP_ARM_GIC_SGI3_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x170000U)
+ #define BSP_ARM_GIC_RD4_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x180000U)
+ #define BSP_ARM_GIC_SGI4_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x190000U)
+ #define BSP_ARM_GIC_RD5_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x1A0000U)
+ #define BSP_ARM_GIC_SGI5_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x1B0000U)
+ #define BSP_ARM_GIC_RD6_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x1C0000U)
+ #define BSP_ARM_GIC_SGI6_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x1D0000U)
+ #define BSP_ARM_GIC_RD7_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x1E0000U)
+ #define BSP_ARM_GIC_SGI7_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x1F0000U)
+ #elif defined(PHYTIUM_BSP_TYPE_FT2004_DSK)
+ #define BSP_ARM_GIC_RD0_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x80000U)
+ #define BSP_ARM_GIC_SGI0_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x90000U)
+ #define BSP_ARM_GIC_RD1_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xA0000U)
+ #define BSP_ARM_GIC_SGI1_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xB0000U)
+ #define BSP_ARM_GIC_RD2_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xC0000U)
+ #define BSP_ARM_GIC_SGI2_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xD0000U)
+ #define BSP_ARM_GIC_RD3_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xE0000U)
+ #define BSP_ARM_GIC_SGI3_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xF0000U)
+ #elif defined(PHYTIUM_BSP_TYPE_PD2408_TESTA) || defined(PHYTIUM_BSP_TYPE_PD2308_DEMO)
+ #define BSP_ARM_GIC_RD0_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x60000U)
+ #define BSP_ARM_GIC_SGI0_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x70000U)
+ #define BSP_ARM_GIC_RD1_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x80000U)
+ #define BSP_ARM_GIC_SGI1_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x90000U)
+ #define BSP_ARM_GIC_RD2_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xa0000U)
+ #define BSP_ARM_GIC_SGI2_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xb0000U)
+ #define BSP_ARM_GIC_RD3_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xc0000U)
+ #define BSP_ARM_GIC_SGI3_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xd0000U)
+ #define BSP_ARM_GIC_RD4_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0xe0000U)
+ #define BSP_ARM_GIC_SGI4_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0xf0000U)
+ #define BSP_ARM_GIC_RD5_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x100000U)
+ #define BSP_ARM_GIC_SGI5_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x110000U)
+ #define BSP_ARM_GIC_RD6_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x120000U)
+ #define BSP_ARM_GIC_SGI6_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x130000U)
+ #define BSP_ARM_GIC_RD7_BASE   (BSP_ARM_GIC_CPUIF_BASE + 0x140000U)
+ #define BSP_ARM_GIC_SGI7_BASE  (BSP_ARM_GIC_CPUIF_BASE + 0x150000U)
+ #endif
+ 
+ #ifdef  BSP_ARM_GIC_REDIST_BASE
+ #undef  BSP_ARM_GIC_REDIST_BASE
+ #endif
+ 
+ /* assert primary core is physical core-2, affinity 0x200 */
+ #if defined(PHYTIUM_BSP_TYPE_E2000Q_DEMO) || defined(PHYTIUM_BSP_TYPE_PHYTIUM_PI)
+ #define BSP_ARM_GIC_MAIN_AFF    BSP_CORE2_AFF
+ #else
+ #define BSP_ARM_GIC_MAIN_AFF    BSP_CORE0_AFF
+ #endif
+ 
+ /* definition for peripherals */
+ #define BSP_FDT_IS_SUPPORTED
+ 
+ #if defined(FUART1_BASE_ADDR)
+ #define BSP_PHYTIUM_UART1_BASE    FUART1_BASE_ADDR
+ #define BSP_PHYTIUM_UART1_LENGTH  FUART_REG_LENGTH
+ 
+ #define BSP_PHYTIUM_CONSOLE_UART_BASE   BSP_PHYTIUM_UART1_BASE
+ #define BSP_PHYTIUM_CONSOLE_UART_LENGTH BSP_PHYTIUM_UART1_LENGTH
+
+ #define BSP_PHYTIUM_CONSOLE_UART_BAUD   115200U
+ #define BSP_PHYTIUM_CONSOLE_UART_CLOCK  FUART1_CLK_FREQ_HZ
+ #endif
+ 
+ #if defined(FXMAC0_BASE_ADDR)
+ #define BSP_PHYTIUM_XMAC0_BASE    FXMAC0_BASE_ADDR
+ #endif
+ 
+ #if defined(FXMAC1_BASE_ADDR)
+ #define BSP_PHYTIUM_XMAC1_BASE    FXMAC1_BASE_ADDR
+ #endif
+ 
+ #endif /* ASM */
+ 
+ #ifdef __cplusplus
+ }
+ #endif /* __cplusplus */
+ 
+ 
+ /** @} */
+ 
+ #endif /* LIBBSP_AARCH64_PHYTIUM_BSP_H */
+ 

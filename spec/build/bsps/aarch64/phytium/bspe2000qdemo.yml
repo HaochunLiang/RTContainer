@@ -1,0 +1,98 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+arch: aarch64
+bsp: phytium_e2000q_demo
+build-type: bsp
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+enabled-by: true
+family: phytium
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/iomux/fiopad
+  - bsps/../../../standalone/drivers/mmc/fsdif
+  - bsps/../../../standalone/drivers/eth/fxmac
+
+  - bsps/aarch64/phytium/include/soc/e2000q
+  - bsps/../../../standalone/board/e2000q_demo
+
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  # support source files using #include "fparameters.h"
+  - bsps/aarch64/phytium/include/soc/e2000q/fparameters_comm.h
+  - bsps/aarch64/phytium/include/soc/e2000q/fparameters.h
+
+# support source files using #inclde <soc/e2000q/fparameters.h>
+- destination: ${BSP_INCLUDEDIR}/soc/e2000q
+  source:
+  - bsps/aarch64/phytium/include/soc/e2000q/fparameters_comm.h
+  - bsps/aarch64/phytium/include/soc/e2000q/fparameters.h
+
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/board/e2000q_demo/fio_mux.h
+  - bsps/../../../standalone/board/e2000q_demo/fsdif_timing.h
+
+links:
+- role: build-dependency
+  uid: abi
+- role: build-dependency
+  uid: ../grp
+- role: build-dependency
+  uid: optphytium
+- role: build-dependency
+  uid: opte2000qdemo
+- role: build-dependency
+  uid: ../../../cpukit/objsmp
+- role: build-dependency
+  uid: optloadoff
+- role: build-dependency
+  uid: optramlen
+- role: build-dependency
+  uid: optramori
+- role: build-dependency
+  uid: optflushcacheboot
+- role: build-dependency
+  uid: start
+- role: build-dependency
+  uid: ../optmmupages
+- role: build-dependency
+  uid: ../../optcachedata
+- role: build-dependency
+  uid: ../../optcacheinst
+- role: build-dependency
+  uid: ../../opto2
+- role: build-dependency
+  uid: ../../bspopts
+- role: build-dependency
+  uid: linkercmds
+- role: build-dependency
+  uid: ../../objdevserialarmpl011
+- role: build-dependency
+  uid: objphytium
+- role: build-dependency
+  uid: objsmp
+- role: build-dependency
+  uid: objgicv3
+- role: build-dependency
+  uid: objgtimer
+- role: build-dependency
+  uid: ../../obj
+- role: build-dependency
+  uid: ../../objirq
+- role: build-dependency
+  uid: objfiopad
+- role: build-dependency
+  uid: objfsdif
+- role: build-dependency
+  uid: objfwdt
+- role: build-dependency
+  uid: objfxmac    
+source:
+- bsps/../../../standalone/board/e2000q_demo/fsdif_timing.c
+- bsps/../../../standalone/board/e2000q_demo/fio_mux.c
+- bsps/../../../configs/dtb/e2000q-demo-board.c
+type: build

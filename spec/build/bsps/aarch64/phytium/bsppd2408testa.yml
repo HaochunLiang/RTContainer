@@ -1,0 +1,100 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+arch: aarch64
+bsp: phytium_pd2408_testa
+build-type: bsp
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+enabled-by: true
+family: phytium
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/arch/armv8/aarch64
+  - bsps/../../../standalone/drivers/iomux/fiopad
+  - bsps/../../../standalone/drivers/msg
+  - bsps/../../../standalone/drivers/mmc/fsdif_v2_0
+  - bsps/../../../standalone/drivers/eth/fxmac_v2_0
+
+  - bsps/aarch64/phytium/include/soc/pd2408
+  - bsps/../../../standalone/board/pd2408_test_a
+
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  # support source files using #include "fparameters.h"
+  - bsps/aarch64/phytium/include/soc/pd2408/fparameters.h
+
+# support source files using #inclde <soc/e2000q/fparameters.h>
+- destination: ${BSP_INCLUDEDIR}/soc/pd2408
+  source:
+  - bsps/aarch64/phytium/include/soc/pd2408/fparameters.h
+
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/board/pd2408_test_a/fio_mux.h
+  - bsps/../../../standalone/board/pd2408_test_a/fsdif_timing.h
+  - bsps/../../../standalone/drivers/msg/fmsg_common.h
+
+links:
+- role: build-dependency
+  uid: abi
+- role: build-dependency
+  uid: ../grp
+- role: build-dependency
+  uid: optphytium
+- role: build-dependency
+  uid: optpd2408testa
+- role: build-dependency
+  uid: ../../../cpukit/objsmp
+- role: build-dependency
+  uid: optloadoff
+- role: build-dependency
+  uid: optramlen
+- role: build-dependency
+  uid: optramori
+- role: build-dependency
+  uid: optflushcacheboot
+- role: build-dependency
+  uid: start
+- role: build-dependency
+  uid: ../optmmupages
+- role: build-dependency
+  uid: ../../optcachedata
+- role: build-dependency
+  uid: ../../optcacheinst
+- role: build-dependency
+  uid: ../../opto2
+- role: build-dependency
+  uid: ../../bspopts
+- role: build-dependency
+  uid: linkercmds
+- role: build-dependency
+  uid: ../../objdevserialarmpl011
+- role: build-dependency
+  uid: objphytium
+- role: build-dependency
+  uid: objsmp
+- role: build-dependency
+  uid: objgicv3
+- role: build-dependency
+  uid: objgtimer
+- role: build-dependency
+  uid: ../../obj
+- role: build-dependency
+  uid: ../../objirq
+- role: build-dependency
+  uid: objfiopad
+- role: build-dependency
+  uid: objfwdt
+- role: build-dependency
+  uid: objfsdifv2
+- role: build-dependency
+  uid: objfxmacv2
+source:
+- bsps/../../../standalone/board/pd2408_test_a/fsdif_timing.c
+- bsps/../../../standalone/board/pd2408_test_a/fio_mux.c
+- bsps/../../../configs/dtb/pd2408-testa-board.c
+
+type: build

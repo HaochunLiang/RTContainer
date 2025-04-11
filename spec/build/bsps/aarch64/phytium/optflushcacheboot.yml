@@ -1,0 +1,17 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+actions:
+- get-boolean: null
+- define-condition: null
+build-type: option
+copyrights:
+- Copyright Copyright (C) 2025 Phytium Information Technology, Inc.
+default:
+- enabled-by: true
+  value: false
+description: |
+  If set to true, dcache will be flushed when startup, this feature is for JTAG bootup or
+  Uboot/UEFI bootup without decache flsuh/off support
+enabled-by: true
+links: []
+name: AARCH64_FLUSH_CACHE_BOOT_UP
+type: build

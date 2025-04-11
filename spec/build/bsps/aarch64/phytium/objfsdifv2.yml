@@ -1,0 +1,27 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/msg
+  - bsps/../../../standalone/drivers/mmc/fsdif_v2_0
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_hw.h
+  - bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_common.h
+  - bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg.h
+links: []
+source:
+- bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_common.c
+- bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_g.c
+- bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_intr.c
+- bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg_sinit.c
+- bsps/../../../standalone/drivers/mmc/fsdif_v2_0/fsdif_msg.c
+type: build

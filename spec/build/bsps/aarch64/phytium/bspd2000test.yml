@@ -1,0 +1,86 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+arch: aarch64
+bsp: phytium_d2000_test
+build-type: bsp
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+enabled-by: true
+family: phytium
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/iomux/fioctrl
+
+  - bsps/aarch64/phytium/include/soc/d2000
+  - bsps/../../../standalone/board/d2000_test
+
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  # support source files using #include "fparameters.h"
+  - bsps/aarch64/phytium/include/soc/d2000/fparameters.h
+
+# support source files using #inclde <soc/d2000/fparameters.h>
+- destination: ${BSP_INCLUDEDIR}/soc/d2000
+  source:
+  - bsps/aarch64/phytium/include/soc/d2000/fparameters.h
+
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/board/d2000_test/fio_mux.h
+
+links:
+- role: build-dependency
+  uid: abi
+- role: build-dependency
+  uid: ../grp
+- role: build-dependency
+  uid: optphytium
+- role: build-dependency
+  uid: optd2000test
+- role: build-dependency
+  uid: ../../../cpukit/objsmp
+- role: build-dependency
+  uid: optloadoff
+- role: build-dependency
+  uid: optramlen
+- role: build-dependency
+  uid: optramori
+- role: build-dependency
+  uid: start
+- role: build-dependency
+  uid: ../optmmupages
+- role: build-dependency
+  uid: ../../optcachedata
+- role: build-dependency
+  uid: ../../optcacheinst
+- role: build-dependency
+  uid: ../../opto2
+- role: build-dependency
+  uid: ../../bspopts
+- role: build-dependency
+  uid: linkercmds
+- role: build-dependency
+  uid: ../../objdevserialarmpl011
+- role: build-dependency
+  uid: objphytium
+- role: build-dependency
+  uid: objsmp
+- role: build-dependency
+  uid: objgicv3
+- role: build-dependency
+  uid: objgtimer
+- role: build-dependency
+  uid: ../../obj
+- role: build-dependency
+  uid: ../../objirq
+- role: build-dependency
+  uid: objfioctrl
+- role: build-dependency
+  uid: objfwdt
+source:
+- bsps/../../../standalone/board/d2000_test/fio_mux.c
+- bsps/../../../configs/dtb/d2000-test-board.c
+type: build

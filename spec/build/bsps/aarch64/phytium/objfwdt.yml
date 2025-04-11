@@ -1,0 +1,25 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/watchdog/fwdt
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/drivers/watchdog/fwdt/fwdt_hw.h
+  - bsps/../../../standalone/drivers/watchdog/fwdt/fwdt.h
+links: []
+source:
+- bsps/../../../standalone/drivers/watchdog/fwdt/fwdt.c
+- bsps/../../../standalone/drivers/watchdog/fwdt/fwdt_g.c
+- bsps/../../../standalone/drivers/watchdog/fwdt/fwdt_hw.c
+- bsps/../../../standalone/drivers/watchdog/fwdt/fwdt_intr.c
+- bsps/../../../standalone/drivers/watchdog/fwdt/fwdt_sinit.c
+type: build

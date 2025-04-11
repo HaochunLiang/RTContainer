@@ -6,7 +6,15 @@ build-type: option
 copyrights:
 - Copyright (C) 2024 embedded brains GmbH & Co. KG
 default:
-- enabled-by: bsps/aarch64/xilinx-zynqmp
+- enabled-by:
+  - bsps/aarch64/xilinx-zynqmp
+  - aarch64/phytium_d2000_test
+  - aarch64/phytium_ft2004_dsk
+  - aarch64/phytium_pi
+  - aarch64/phytium_e2000d_demo
+  - aarch64/phytium_e2000q_demo
+  - aarch64/phytium_pd2308_demo
+  - aarch64/phytium_pd2408_testa
   value: false
 - enabled-by: true
   value: true

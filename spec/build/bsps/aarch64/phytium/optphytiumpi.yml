@@ -1,0 +1,20 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+actions:
+- get-integer: null
+- assert-ge: 0
+- assert-le: 1
+- env-assign: null
+- format-and-define: null
+build-type: option
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+default:
+- enabled-by: true
+  value: 1
+description: |
+  Firefly Phytium PI
+enabled-by: true
+format: '{}'
+links: []
+name: PHYTIUM_BSP_TYPE_PHYTIUM_PI
+type: build

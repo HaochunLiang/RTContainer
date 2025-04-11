@@ -21,6 +21,13 @@ enabled-by:
 - arm/xilinx_zynqmp_ultra96
 - bsps/aarch64/xilinx-zynqmp
 - bsps/arm/xilinx-zynq
+- aarch64/phytium_e2000q_demo
+- aarch64/phytium_e2000d_demo
+- aarch64/phytium_pi
+- aarch64/phytium_d2000_test
+- aarch64/phytium_ft2004_dsk
+- aarch64/phytium_pd2308_demo
+- aarch64/phytium_pd2408_testa
 - bsps/powerpc/qoriq
 - i386/pc386
 - i386/pc486

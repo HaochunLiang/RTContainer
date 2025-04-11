@@ -1,0 +1,35 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes: []
+install:
+- destination: ${BSP_INCLUDEDIR}/dev/irq
+  source:
+  - bsps/include/dev/irq/arm-gic.h
+  - bsps/include/dev/irq/arm-gic-irq.h
+  - bsps/include/dev/irq/arm-gic-regs.h
+  - bsps/include/dev/irq/arm-gic-tm27.h
+  - bsps/aarch64/phytium/include/bsp/bsp_gicv3.h
+links:
+- role: build-dependency
+  uid: ../../dev/irq/optarmgic-icc-bpr1
+- role: build-dependency
+  uid: ../../dev/irq/optarmgic-icc-ctrl
+- role: build-dependency
+  uid: ../../dev/irq/optarmgic-icc-igrpen1
+- role: build-dependency
+  uid: ../../dev/irq/optarmgic-icc-pmr
+- role: build-dependency
+  uid: ../../dev/irq/optarmgic-icc-sre
+- role: build-dependency
+  uid: ../../dev/irq/grpaarch64gic
+- role: build-dependency
+  uid: ../../dev/irq/grparmgic
+source:
+- bsps/aarch64/phytium/irq/bsp_gicv3.c
+type: build

@@ -1,0 +1,36 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2025 Phytium Information Technology, Inc.
+cppflags: []
+cxxflags: []
+enabled-by: true
+includes:
+  - bsps/../../../drivers/port
+  - bsps/../../../standalone/common
+  - bsps/../../../standalone/drivers/eth/fxmac
+  - bsps/../../../standalone/drivers/eth/fxmac/phy
+  - bsps/../../../standalone/drivers/eth/fxmac/phy/yt
+install:
+- destination: ${BSP_INCLUDEDIR}/phytium
+  source:
+  - bsps/../../../standalone/drivers/eth/fxmac/phy/eth_ieee_reg.h
+  - bsps/../../../standalone/drivers/eth/fxmac/phy/yt/phy_yt.h
+  - bsps/../../../standalone/drivers/eth/fxmac/fxmac_bd.h
+  - bsps/../../../standalone/drivers/eth/fxmac/fxmac_bdring.h
+  - bsps/../../../standalone/drivers/eth/fxmac/fxmac_hw.h
+  - bsps/../../../standalone/drivers/eth/fxmac/fxmac_phy.h
+  - bsps/../../../standalone/drivers/eth/fxmac/fxmac.h
+links: []
+source:
+- bsps/../../../standalone/drivers/eth/fxmac/phy/yt/phy_yt.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_bdring.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_debug.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_g.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_intr.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_options.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_phy.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac_sinit.c
+- bsps/../../../standalone/drivers/eth/fxmac/fxmac.c
+type: build
