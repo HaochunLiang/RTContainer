@@ -525,6 +525,18 @@ links:
 - role: build-dependency
   uid: objutf8
 - role: build-dependency
+  uid: objcontainer
+- role: build-dependency
+  uid: objpidcontainer
+- role: build-dependency
+  uid: objutscontainer
+- role: build-dependency
+  uid: objmntcontainer
+- role: build-dependency
+  uid: objnetcontainer
+- role: build-dependency
+  uid: objipccontainer
+- role: build-dependency
   uid: vckey
 source:
 - cpukit/compression/xz/xz_crc32.c
