@@ -13,7 +13,7 @@ links: []
 source:
 - testsuites/samples/pidContainer/test_deleteAndgetInfo.c
 stlib: []
-target: testsuites/samples/test-pid-delete.exe
+target: testsuites/samples/test_pid.exe
 type: build
 use-after: []
 use-before: []

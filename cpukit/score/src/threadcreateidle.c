@@ -112,6 +112,43 @@ static void _Thread_Create_idle_for_CPU(
 #endif
 
   idle->is_idle = true;
+
+  Container *idleContainer = malloc(sizeof(Container));
+  if (idleContainer) {
+    memset(idleContainer, 0, sizeof(Container));
+#ifdef RTEMSCFG_PID_CONTAINER
+    idleContainer->pidContainer = rtems_container_get_root()->pidContainer;
+    idleContainer->pidContainerListHead = NULL;
+    if (idleContainer->pidContainer) 
+      rtems_pid_container_inc_rc(idleContainer->pidContainer);
+#endif
+#ifdef RTEMSCFG_UTS_CONTAINER
+    idleContainer->utsContainer = rtems_container_get_root()->utsContainer;
+    idleContainer->utsContainerListHead = NULL;
+    if (idleContainer->utsContainer)
+      idleContainer->utsContainer->rc++;
+#endif
+#ifdef RTEMSCFG_MNT_CONTAINER
+    idleContainer->mntContainer = rtems_container_get_root()->mntContainer;
+    idleContainer->mntContainerListHead = NULL;
+    if (idleContainer->mntContainer)
+      idleContainer->mntContainer->rc++;
+#endif
+#ifdef RTEMSCFG_NET_CONTAINER
+    idleContainer->netContainer = rtems_container_get_root()->netContainer;
+    idleContainer->netContainerListHead = NULL;
+    if (idleContainer->netContainer)
+      idleContainer->netContainer->rc++;
+#endif
+#ifdef RTEMSCFG_IPC_CONTAINER
+    idleContainer->ipcContainer = rtems_container_get_root()->ipcContainer;
+    idleContainer->ipcContainerListHead = NULL;
+    if (idleContainer->ipcContainer)
+      idleContainer->ipcContainer->rc++;
+#endif
+    idle->container = idleContainer;
+  }
+
   idle->Start.Entry.adaptor = _Thread_Entry_adaptor_idle;
   idle->Start.Entry.Kinds.Idle.entry = _Thread_Idle_body;
 

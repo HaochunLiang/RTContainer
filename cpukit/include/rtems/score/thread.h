@@ -60,6 +60,10 @@
 #include <rtems/score/timestamp.h>
 #include <rtems/score/watchdog.h>
 
+#define RTEMSCFG_CONTAINER
+#include <rtems/score/container.h>
+#endif
+
 #if defined(RTEMS_SMP)
 #include <rtems/score/processormask.h>
 #endif
@@ -1021,6 +1025,8 @@ struct _Thread_Control {
    * The length is defined by the application via <rtems/confdefs.h>.
    */
   void                                 *extensions[ RTEMS_ZERO_LENGTH_ARRAY ];
+
+  Container* container;
 };
 
 typedef void (*rtems_per_thread_routine)( Thread_Control * );

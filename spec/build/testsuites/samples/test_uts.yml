@@ -13,7 +13,7 @@ links: []
 source:
 - testsuites/samples/utsContainer/test_sghostname.c
 stlib: []
-target: testsuites/samples/test-uts-sghostname.exe
+target: testsuites/samples/test_uts.exe
 type: build
 use-after: []
 use-before: []
