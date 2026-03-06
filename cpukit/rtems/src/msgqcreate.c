@@ -43,6 +43,8 @@
 
 #include <string.h>
 
+#include <rtems/score/ipcContainer.h>
+
 rtems_status_code rtems_message_queue_create(
   rtems_name       name,
   uint32_t         count,
@@ -58,7 +60,7 @@ rtems_status_code rtems_message_queue_create(
   config.maximum_pending_messages = count;
   config.maximum_message_size = max_message_size;
   config.attributes = attribute_set;
-
+ 
   return _Message_queue_Create(
     &config,
     id,

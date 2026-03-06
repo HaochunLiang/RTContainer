@@ -103,7 +103,11 @@ static inline POSIX_Message_queue_Control *
   _POSIX_Message_queue_Allocate_unprotected( void )
 {
   return (POSIX_Message_queue_Control *)
-    _Objects_Allocate_unprotected( &_POSIX_Message_queue_Information );
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Objects_Allocate( _POSIX_Message_queue_Get_information_from_container() );
+#else
+    _Objects_Allocate( &_POSIX_Message_queue_Information );
+#endif
 }
 
 /**
@@ -116,7 +120,15 @@ static inline void _POSIX_Message_queue_Free(
   POSIX_Message_queue_Control *the_mq
 )
 {
+#ifdef RTEMSCFG_IPC_CONTAINER
+  _Objects_Free(
+    _POSIX_Message_queue_Get_information_from_container(),
+    &the_mq->Object
+  );
+#else
   _Objects_Free( &_POSIX_Message_queue_Information, &the_mq->Object );
+#endif
+}
 }
 
 
@@ -129,7 +141,11 @@ static inline POSIX_Message_queue_Control *_POSIX_Message_queue_Get(
   return (POSIX_Message_queue_Control *) _Objects_Get(
     id,
     &queue_context->Lock_context.Lock_context,
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _POSIX_Message_queue_Get_information_from_container()
+#else
     &_POSIX_Message_queue_Information
+#endif
   );
 }
 
