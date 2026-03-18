@@ -68,6 +68,44 @@ void	 in_ifdetach(struct ifnet *);
 #define	in_nullhost(x)	((x).s_addr == INADDR_ANY)
 #define	in_allhosts(x)	((x).s_addr == htonl(INADDR_ALLHOSTS_GROUP))
 
+/* Legacy classful IPv4 macros required by classic libnetworking code. */
+#ifndef IN_CLASSA
+#define IN_CLASSA(i)		(((uint32_t)(i) & 0x80000000U) == 0)
+#endif
+#ifndef IN_CLASSA_NET
+#define IN_CLASSA_NET		0xff000000U
+#endif
+#ifndef IN_CLASSA_NSHIFT
+#define IN_CLASSA_NSHIFT	24
+#endif
+#ifndef IN_CLASSA_HOST
+#define IN_CLASSA_HOST		0x00ffffffU
+#endif
+
+#ifndef IN_CLASSB
+#define IN_CLASSB(i)		(((uint32_t)(i) & 0xc0000000U) == 0x80000000U)
+#endif
+#ifndef IN_CLASSB_NET
+#define IN_CLASSB_NET		0xffff0000U
+#endif
+#ifndef IN_CLASSB_NSHIFT
+#define IN_CLASSB_NSHIFT	16
+#endif
+
+#ifndef IN_CLASSC
+#define IN_CLASSC(i)		(((uint32_t)(i) & 0xe0000000U) == 0xc0000000U)
+#endif
+#ifndef IN_CLASSC_NET
+#define IN_CLASSC_NET		0xffffff00U
+#endif
+#ifndef IN_CLASSC_NSHIFT
+#define IN_CLASSC_NSHIFT	8
+#endif
+
+#ifndef IN_LOOPBACKNET
+#define IN_LOOPBACKNET		127
+#endif
+
 #define	satosin(sa)	((struct sockaddr_in *)(sa))
 #define	sintosa(sin)	((struct sockaddr *)(sin))
 #define	ifatoia(ifa)	((struct in_ifaddr *)(ifa))

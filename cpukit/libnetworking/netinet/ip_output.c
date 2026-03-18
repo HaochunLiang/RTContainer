@@ -185,6 +185,43 @@ ip_output(struct mbuf *m0, struct mbuf *opt, struct route *ro, int flags,
 		IFP_TO_IA(ifp, ia);
 		isbroadcast = 0;	/* fool gcc */
 	} else {
+		#ifdef RTEMSCFG_NET_CONTAINER
+		/*
+		 * Container loopback fast path: do not depend on route availability
+		 * for 127/8 traffic.
+		 */
+		if ((ntohl(ip->ip_dst.s_addr) & 0xff000000U) == 0x7f000000U) {
+			for (ia = GET_IN_IFADDR_LIST(); ia; ia = ia->ia_next) {
+				if (ia->ia_ifp != NULL &&
+				    (ia->ia_ifp->if_flags & IFF_LOOPBACK) != 0) {
+					ifp = ia->ia_ifp;
+					isbroadcast = 0;
+					printf("ip_output: container loopback fast-path via %s%d dst=%08x\n",
+					    ifp->if_name, ifp->if_unit, ntohl(ip->ip_dst.s_addr));
+					goto container_loopback_fallback;
+				}
+			}
+
+			/* Fallback: check global interface list if container list is not ready. */
+			{
+				struct ifnet *loop_ifp;
+
+				for (loop_ifp = ifnet; loop_ifp != NULL; loop_ifp = loop_ifp->if_next) {
+					if (loop_ifp->if_name != NULL &&
+					    strcmp(loop_ifp->if_name, "lo") == 0 &&
+					    loop_ifp->if_unit == 0) {
+						ifp = loop_ifp;
+						IFP_TO_IA(ifp, ia);
+						isbroadcast = 0;
+						printf("ip_output: container loopback global-fallback via %s%d dst=%08x\n",
+						    ifp->if_name, ifp->if_unit, ntohl(ip->ip_dst.s_addr));
+						goto container_loopback_fallback;
+					}
+				}
+			}
+		}
+		#endif
+
 		/*
 		 * If this is the case, we probably don't want to allocate
 		 * a protocol-cloned route since we didn't get one from the
@@ -197,6 +234,8 @@ ip_output(struct mbuf *m0, struct mbuf *opt, struct route *ro, int flags,
 		if (ro->ro_rt == 0)
 			rtalloc_ign(ro, RTF_PRCLONING);
 		if (ro->ro_rt == 0) {
+			printf("ip_output: noroute dst=%08x flags=%x\n",
+			    ntohl(ip->ip_dst.s_addr), flags);
 			ipstat.ips_noroute++;
 			error = EHOSTUNREACH;
 			goto bad;
@@ -238,6 +277,10 @@ found_veth:
 			isbroadcast = (ro->ro_rt->rt_flags & RTF_BROADCAST);
 		else
 			isbroadcast = in_broadcast(dst->sin_addr, ifp);
+
+#ifdef RTEMSCFG_NET_CONTAINER
+container_loopback_fallback:
+#endif
 	}
 	if (IN_MULTICAST(ntohl(ip->ip_dst.s_addr))) {
 		struct in_multi *inm;
@@ -426,6 +469,20 @@ sendit:
 	 * If small enough for interface, or the interface will take
 	 * care of the fragmentation for us, we can just send directly.
 	 */
+	{
+		struct rtentry *rt_for_output = ro->ro_rt;
+
+#ifdef RTEMSCFG_NET_CONTAINER
+		/*
+		 * For container loopback traffic, avoid reject/stale route side effects
+		 * by not passing a route entry to loopback output.
+		 */
+		if (ifp != NULL && (ifp->if_flags & IFF_LOOPBACK) != 0 &&
+		    (ntohl(ip->ip_dst.s_addr) & 0xff000000U) == 0x7f000000U) {
+			rt_for_output = NULL;
+		}
+#endif
+
 	if ((u_short)ip->ip_len <= ifp->if_mtu) {
 		ip->ip_len = htons(ip->ip_len);
 		ip->ip_off = htons(ip->ip_off);
@@ -440,7 +497,12 @@ sendit:
 			ip->ip_sum = in_cksum(m, hlen);
 		}
 		error = (*ifp->if_output)(ifp, m,
-				(struct sockaddr *)dst, ro->ro_rt);
+				(struct sockaddr *)dst, rt_for_output);
+		if (error != 0) {
+			printf("ip_output: if_output error=%d if=%s%d dst=%08x rt=%p\n",
+			    error, ifp->if_name, ifp->if_unit,
+			    ntohl(ip->ip_dst.s_addr), (void *)rt_for_output);
+		}
 		goto done;
 	}
 	/*
@@ -559,13 +621,14 @@ sendorfree:
 		m->m_nextpkt = 0;
 		if (error == 0)
 			error = (*ifp->if_output)(ifp, m,
-			    (struct sockaddr *)dst, ro->ro_rt);
+			    (struct sockaddr *)dst, rt_for_output);
 		else
 			m_freem(m);
 	}
 
 	if (error == 0)
 		ipstat.ips_fragmented++;
+    }
     }
 done:
 	return (error);

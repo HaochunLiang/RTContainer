@@ -207,8 +207,8 @@ udp_input(struct mbuf *m, int iphlen)
 		 */
 		udp_in.sin_port = uh->uh_sport;
 		udp_in.sin_addr = ip->ip_src;
-		m->m_len -= sizeof (struct udpiphdr);
-		m->m_data += sizeof (struct udpiphdr);
+			m->m_len -= sizeof(struct ip) + sizeof(struct udphdr);
+			m->m_data += sizeof(struct ip) + sizeof(struct udphdr);
 		/*
 		 * Locate pcb(s) for datagram.
 		 * (Algorithm copied from raw_intr().)
@@ -390,7 +390,7 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct mbuf *addr,
 	if (control)
 		m_freem(control);		/* XXX */
 
-	if (len + sizeof(struct udpiphdr) > IP_MAXPACKET) {
+	if (len + sizeof(struct ip) + sizeof(struct udphdr) > IP_MAXPACKET) {
 		error = EMSGSIZE;
 		goto release;
 	}
@@ -417,9 +417,43 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct mbuf *addr,
 		}
 	}
 	/*
-	 * Calculate data length and get a mbuf
-	 * for UDP and IP headers.
+	 * Calculate data length and get a mbuf for UDP and IP headers.
+	 *
+	 * NOTE: On 64-bit hosts, sizeof(caddr_t) == 8 makes struct ipovly
+	 * larger than struct ip, so sizeof(struct udpiphdr) !=
+	 * sizeof(struct ip) + sizeof(struct udphdr).  Use explicit sizes
+	 * on 64-bit to ensure the UDP header is placed at the correct
+	 * offset (immediately after the 20-byte IP header).
 	 */
+#if __SIZEOF_POINTER__ > 4
+	M_PREPEND(m, sizeof(struct ip) + sizeof(struct udphdr), M_DONTWAIT);
+	if (m == 0) {
+		error = ENOBUFS;
+		if (addr) {
+			in_pcbdisconnect(inp);
+			inp->inp_laddr = laddr;
+			splx(s);
+		}
+		goto release;
+	}
+	{
+		struct ip    *ip_h  = mtod(m, struct ip *);
+		struct udphdr *udp_h = (struct udphdr *)((char *)ip_h + sizeof(struct ip));
+		/* UDP header */
+		udp_h->uh_sport = inp->inp_lport;
+		udp_h->uh_dport = inp->inp_fport;
+		udp_h->uh_ulen  = htons((u_short)(len + sizeof(struct udphdr)));
+		udp_h->uh_sum   = 0; /* RFC 768: uh_sum==0 means no checksum */
+		/* Partial IP header; ip_output fills vhl, off, id, sum */
+		ip_h->ip_p   = IPPROTO_UDP;
+		ip_h->ip_src = inp->inp_laddr;
+		ip_h->ip_dst = inp->inp_faddr;
+		ip_h->ip_len = (u_short)(sizeof(struct ip) + sizeof(struct udphdr) + len);
+		ip_h->ip_ttl = inp->inp_ip_ttl;
+		ip_h->ip_tos = inp->inp_ip_tos;
+		ip_h->ip_off = 0;
+	}
+#else
 	M_PREPEND(m, sizeof(struct udpiphdr), M_DONTWAIT);
 	if (m == 0) {
 		error = ENOBUFS;
@@ -430,7 +464,6 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct mbuf *addr,
 		}
 		goto release;
 	}
-
 	/*
 	 * Fill in mbuf with extended UDP header
 	 * and addresses and length put into network format.
@@ -445,7 +478,6 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct mbuf *addr,
 	ui->ui_sport = inp->inp_lport;
 	ui->ui_dport = inp->inp_fport;
 	ui->ui_ulen = ui->ui_len;
-
 	/*
 	 * Stuff checksum and output datagram.
 	 */
@@ -457,6 +489,7 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct mbuf *addr,
 	((struct ip *)ui)->ip_len = sizeof (struct udpiphdr) + len;
 	((struct ip *)ui)->ip_ttl = inp->inp_ip_ttl;	/* XXX */
 	((struct ip *)ui)->ip_tos = inp->inp_ip_tos;	/* XXX */
+#endif
 	udpstat.udps_opackets++;
 	error = ip_output(m, inp->inp_options, &inp->inp_route,
 	    inp->inp_socket->so_options & (SO_DONTROUTE | SO_BROADCAST),

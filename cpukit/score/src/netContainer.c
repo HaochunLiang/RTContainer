@@ -15,12 +15,13 @@
 #include <rtems/rtems_bsdnet.h>
 #include <net/if.h>
 #include <net/if_var.h>
-#include <net/if_veth.h>
+#include <net/route.h>
 #include <sys/socket.h>
 #include <sys/domain.h>
+#include <sys/sockio.h>
+#include <netinet/in.h>
+#include <netinet/in_var.h>
 #include <netinet/in_pcb.h>
-#include <sys/systm.h>
-#include <sys/malloc.h>
 
 #define UDBHASHSIZE 64
 #define TCBHASHSIZE 128
@@ -31,9 +32,126 @@ extern struct ifaddr **ifnet_addrs;
 static int g_netContainerId = 1;
 static int g_currentNetContainerNum = 0;
 
+static void *net_hashinit_local(int count, u_long *hashmask)
+{
+    int n = 1;
+
+    while (n < count) {
+        n <<= 1;
+    }
+
+    *hashmask = (u_long)(n - 1);
+    return _Workspace_Allocate((size_t)n * sizeof(void *));
+}
+
+static void net_hashfree_local(void *p)
+{
+    if (p != NULL) {
+        _Workspace_Free(p);
+    }
+}
+
 static net_group* net_group_new(void);
 static void net_group_free(net_group *group);
 static bool switch_to_root_net(Thread_Control *thread, void *arg);
+static int create_loopback_for_container(NetContainer *netContainer);
+
+static int install_container_loopback_route(NetContainer *netContainer)
+{
+    struct in_ifaddr *ia;
+
+    if (netContainer == NULL || netContainer->group == NULL) {
+        return -1;
+    }
+
+    for (ia = netContainer->group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
+        if (ia->ia_ifp != NULL && ia->ia_ifp->if_name != NULL &&
+            strcmp(ia->ia_ifp->if_name, "lo") == 0) {
+            break;
+        }
+    }
+
+    if (ia == NULL) {
+        return -1;
+    }
+
+    ia->ia_ifa.ifa_addr = (struct sockaddr *) &ia->ia_addr;
+    ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
+    ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
+    ia->ia_ifa.ifa_ifp = ia->ia_ifp;
+
+    if (ia->ia_flags & IFA_ROUTE) {
+        (void) rtinit(&(ia->ia_ifa), RTM_DELETE, RTF_HOST);
+        ia->ia_flags &= ~IFA_ROUTE;
+    }
+
+    if (rtinit(&(ia->ia_ifa), RTM_ADD, RTF_HOST | RTF_UP) != 0) {
+        return -1;
+    }
+
+    ia->ia_flags |= IFA_ROUTE;
+    return 0;
+}
+
+static int configure_loopback_ipv4_in_container(NetContainer *netContainer)
+{
+    Thread_Control *self;
+    NetContainer *srcContainer;
+    short flags;
+    struct sockaddr_in address;
+    struct sockaddr_in netmask;
+    int rc = 0;
+
+    if (netContainer == NULL) {
+        return -1;
+    }
+
+    self = (Thread_Control *) _Thread_Get_executing();
+    if (self == NULL || self->container == NULL || self->container->netContainer == NULL) {
+        return 0;
+    }
+
+    srcContainer = self->container->netContainer;
+    if (srcContainer != netContainer) {
+        rtems_net_container_move_task(srcContainer, netContainer, self);
+    }
+
+    flags = IFF_UP | IFF_RUNNING | IFF_LOOPBACK;
+    if (rtems_bsdnet_ifconfig("lo0", SIOCSIFFLAGS, &flags) < 0) {
+        rc = -1;
+        goto restore;
+    }
+
+    memset(&netmask, 0, sizeof(netmask));
+    netmask.sin_len = sizeof(netmask);
+    netmask.sin_family = AF_INET;
+    netmask.sin_addr.s_addr = htonl(IN_CLASSA_NET);
+    if (rtems_bsdnet_ifconfig("lo0", SIOCSIFNETMASK, &netmask) < 0) {
+        rc = -1;
+        goto restore;
+    }
+
+    memset(&address, 0, sizeof(address));
+    address.sin_len = sizeof(address);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (rtems_bsdnet_ifconfig("lo0", SIOCSIFADDR, &address) < 0) {
+        rc = -1;
+        goto restore;
+    }
+
+    if (install_container_loopback_route(netContainer) != 0) {
+        rc = -1;
+        goto restore;
+    }
+
+restore:
+    if (srcContainer != netContainer) {
+        rtems_net_container_move_task(netContainer, srcContainer, self);
+    }
+
+    return rc;
+}
 
 // 初始化根网络容器
 int rtems_net_container_initialize_root(NetContainer **netContainer)
@@ -52,6 +170,12 @@ int rtems_net_container_initialize_root(NetContainer **netContainer)
     (*netContainer)->rc = 3;
     (*netContainer)->group = net_group_new(); 
     (*netContainer)->containerID = 1;
+
+    if ((*netContainer)->group == NULL) {
+        _Workspace_Free(*netContainer);
+        *netContainer = NULL;
+        return -1;
+    }
 
     g_currentNetContainerNum++;
 
@@ -91,7 +215,7 @@ static net_group* net_group_new(void)
     }
     memset(group->udp_pcbinfo, 0, sizeof(struct inpcbinfo));
     group->udp_pcbinfo->listhead = group->udp_pcblist;
-    group->udp_pcbinfo->hashbase = hashinit(UDBHASHSIZE, M_PCB, &group->udp_pcbinfo->hashmask);
+    group->udp_pcbinfo->hashbase = net_hashinit_local(UDBHASHSIZE, &group->udp_pcbinfo->hashmask);
     if (group->udp_pcbinfo->hashbase == NULL) {
         _Workspace_Free(group->udp_pcbinfo);
         _Workspace_Free(group->udp_pcblist);
@@ -102,7 +226,7 @@ static net_group* net_group_new(void)
     // 初始化 TCP PCB
     group->tcp_pcblist = (struct inpcbhead *)_Workspace_Allocate(sizeof(struct inpcbhead));
     if (group->tcp_pcblist == NULL) {
-        free(group->udp_pcbinfo->hashbase, M_PCB);
+        net_hashfree_local(group->udp_pcbinfo->hashbase);
         _Workspace_Free(group->udp_pcbinfo);
         _Workspace_Free(group->udp_pcblist);
         _Workspace_Free(group);
@@ -113,7 +237,7 @@ static net_group* net_group_new(void)
     group->tcp_pcbinfo = (struct inpcbinfo *)_Workspace_Allocate(sizeof(struct inpcbinfo));
     if (group->tcp_pcbinfo == NULL) {
         _Workspace_Free(group->tcp_pcblist);
-        free(group->udp_pcbinfo->hashbase, M_PCB);
+        net_hashfree_local(group->udp_pcbinfo->hashbase);
         _Workspace_Free(group->udp_pcbinfo);
         _Workspace_Free(group->udp_pcblist);
         _Workspace_Free(group);
@@ -121,11 +245,11 @@ static net_group* net_group_new(void)
     }
     memset(group->tcp_pcbinfo, 0, sizeof(struct inpcbinfo));
     group->tcp_pcbinfo->listhead = group->tcp_pcblist;
-    group->tcp_pcbinfo->hashbase = hashinit(TCBHASHSIZE, M_PCB, &group->tcp_pcbinfo->hashmask);
+    group->tcp_pcbinfo->hashbase = net_hashinit_local(TCBHASHSIZE, &group->tcp_pcbinfo->hashmask);
     if (group->tcp_pcbinfo->hashbase == NULL) {
         _Workspace_Free(group->tcp_pcbinfo);
         _Workspace_Free(group->tcp_pcblist);
-        free(group->udp_pcbinfo->hashbase, M_PCB);
+        net_hashfree_local(group->udp_pcbinfo->hashbase);
         _Workspace_Free(group->udp_pcbinfo);
         _Workspace_Free(group->udp_pcblist);
         _Workspace_Free(group);
@@ -153,10 +277,10 @@ static net_group* net_group_new(void)
             carousel_destroy(group->carousel);
         }
 #endif
-        free(group->tcp_pcbinfo->hashbase, M_PCB);
+        net_hashfree_local(group->tcp_pcbinfo->hashbase);
         _Workspace_Free(group->tcp_pcbinfo);
         _Workspace_Free(group->tcp_pcblist);
-        free(group->udp_pcbinfo->hashbase, M_PCB);
+        net_hashfree_local(group->udp_pcbinfo->hashbase);
         _Workspace_Free(group->udp_pcbinfo);
         _Workspace_Free(group->udp_pcblist);
         _Workspace_Free(group);
@@ -196,7 +320,7 @@ static void net_group_free(net_group *group)
     // 释放 TCP PCB
     if (group->tcp_pcbinfo) {
         if (group->tcp_pcbinfo->hashbase) {
-            free(group->tcp_pcbinfo->hashbase, M_PCB);
+            net_hashfree_local(group->tcp_pcbinfo->hashbase);
         }
         _Workspace_Free(group->tcp_pcbinfo);
     }
@@ -207,7 +331,7 @@ static void net_group_free(net_group *group)
     // 释放 UDP PCB
     if (group->udp_pcbinfo) {
         if (group->udp_pcbinfo->hashbase) {
-            free(group->udp_pcbinfo->hashbase, M_PCB);
+            net_hashfree_local(group->udp_pcbinfo->hashbase);
         }
         _Workspace_Free(group->udp_pcbinfo);
     }
@@ -225,15 +349,34 @@ static void net_group_free(net_group *group)
 // 为容器创建独立的 loopback 接口
 static int create_loopback_for_container(NetContainer *netContainer)
 {
-    extern void rtems_bsdnet_initialize_loop_for_container(void *net_group_ptr);
-    
+    extern int rtems_bsdnet_initialize_loop_for_container(void *net_group_ptr);
+    int rc;
+
     if (!netContainer || !netContainer->group) {
         return -1;
     }
-    
+
     // 为容器创建独立的 loopback 接口，传递整个 NetGroup 结构
-    rtems_bsdnet_initialize_loop_for_container(netContainer->group);
-    
+    rc = rtems_bsdnet_initialize_loop_for_container(netContainer->group);
+    if (rc != 0) {
+        printf("容器%d: loopback 初始化失败 rc=%d\n", netContainer->containerID, rc);
+        return -1;
+    }
+
+    if (netContainer->group->ifnet_p == NULL || netContainer->group->in_ifaddr == NULL) {
+        printf("容器%d: loopback 数据不完整 ifnet=%p in_ifaddr=%p\n",
+               netContainer->containerID,
+               (void *)netContainer->group->ifnet_p,
+               (void *)netContainer->group->in_ifaddr);
+        return -1;
+    }
+
+    /* Route installation can fail during early bring-up; keep container creation non-fatal. */
+    (void) install_container_loopback_route(netContainer);
+
+    /* Configure IPv4 only if current thread/container context is usable; failures are non-fatal. */
+    (void) configure_loopback_ipv4_in_container(netContainer);
+
     printf("容器%d: 创建独立的 loopback 接口\n", netContainer->containerID);
     return 0;
 }
@@ -247,7 +390,7 @@ NetContainer *rtems_net_container_create(void)
         return NULL;
     }
 
-    netContainer->rc = 1; // 初始引用计数为1，创建者持有一个引用
+    netContainer->rc = 1; // 初始引用计数为1，避免首次 move_task 后被提前删除
     netContainer->containerID = ++g_netContainerId;
     
     // 创建net_group
@@ -261,7 +404,10 @@ NetContainer *rtems_net_container_create(void)
 
     // 为容器创建独立的 loopback 接口
     if (create_loopback_for_container(netContainer) != 0) {
-        printf("警告: 容器%d loopback 接口创建失败\n", netContainer->containerID);
+        printf("错误: 容器%d loopback 接口创建失败\n", netContainer->containerID);
+        net_group_free(netContainer->group);
+        _Workspace_Free(netContainer);
+        return NULL;
     }
 
     g_currentNetContainerNum++;
