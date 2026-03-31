@@ -1,22 +1,7 @@
-Real-Time Executive for Multiprocessing Systems
+Real-Time Container based on RTEMS6 for Phytium-d2000
 ===============================================
 
-RTEMS is a real-time executive (kernel) which provides a high performance 
-environment for embedded applications with the following features:
-
- * Standards based user interfaces.
- * Multitasking capabilities.
- * Homogeneous and heterogeneous multiprocessor systems.
- * Event-driven, priority-based, preemptive scheduling.
- * Optional rate monotonic scheduling.
- * Intertask communication and synchronisation.
- * Priority inheritance.
- * Responsive interrupt management.
- * Dynamic memory allocation.
- * High level of user configurability.
- * Open source with a friendly user license.
-
-
+## 1. Real-Time Executive for Multiprocessing Systems
 Project git repositories are located at:
 
   * https://gitlab.rtems.org/rtems/
@@ -44,3 +29,49 @@ use the devel list.
 
 
 The version number for this software is indicated in the VERSION file.
+
+## 2. Startup
+step.1 pull RTEMS6 development environment
+```bash
+docker pull roker405/rtems6-env:v1.0
+docker run -it --name rtems6-dev \
+  --net=host \
+  roker405/rtems6-env:v1.0 \
+  bash
+docker exec -it -e "TERM=xterm-256color" rtems6-dev bash
+```
+
+step.2 pull phytium version source code
+```bash
+cd /usr/src
+git clone https://github.com/The-Lyc/RTContainer.git rtems6
+```
+
+step.3 set config.ini
+```bash
+cd rtems6
+cat << EOF > config.ini
+[DEFAULT]
+BUILD_TESTS = True
+RTEMS_POSIX_API = True
+
+[aarch64/a53_lp64_qemu]
+EOF
+```
+
+step.4 build bsp
+```bash
+./waf configure --prefix=/opt/rtems6 
+# append -j to use more cpu cores
+./waf build 
+./waf install
+```
+
+step.5 use qemu to virtually run target elf
+```bash
+apt install qemu-system-aarch64
+qemu-system-aarch64 -M virt,gic-version=3 \
+  -cpu cortex-a53  -smp 1  -m 512M        \
+  -nographic  -no-reboot   -kernel        \
+  build/aarch64/a53_lp64_qemu/testsuites/samples/hello.exe
+```
