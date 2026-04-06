@@ -9,7 +9,7 @@ copyrights:
 - Copyright (C) 2025 Phytium Information Technology, Inc.
 default:
 - enabled-by: true
-  value: 0x80000000
+  value: 0x90000000
 description: |
   This option defines the base address of the DDR memory area which is
   statically available to the application.  The default value takes a NULL
