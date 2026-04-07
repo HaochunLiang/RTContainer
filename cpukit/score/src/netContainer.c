@@ -23,6 +23,10 @@
 #include <netinet/in_var.h>
 #include <netinet/in_pcb.h>
 
+#ifdef RTEMSCFG_CONTAINER_LOG
+#include <rtems/score/containerlog.h>
+#endif
+
 #define UDBHASHSIZE 64
 #define TCBHASHSIZE 128
 
@@ -156,14 +160,17 @@ restore:
 // 初始化根网络容器
 int rtems_net_container_initialize_root(NetContainer **netContainer)
 {
+    CONTAINER_LOG_TRACE("Initializing root NET container");
     if (netContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("NET container pointer is NULL");
         return -1;
     }
 
     *netContainer = (NetContainer *)_Workspace_Allocate(sizeof(NetContainer));     // 可能存在的问题是用户初始化函数使用这个的话用户空间还没启动， 所以使用这个函数存在错误，之后调试出现问题换成malloc
     if (*netContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("Failed to allocate memory for root NET container");
         return -1;
     }
 
@@ -174,10 +181,12 @@ int rtems_net_container_initialize_root(NetContainer **netContainer)
     if ((*netContainer)->group == NULL) {
         _Workspace_Free(*netContainer);
         *netContainer = NULL;
+        CONTAINER_LOG_ERROR("Failed to initialize net_group for root NET container");
         return -1;
     }
 
     g_currentNetContainerNum++;
+    CONTAINER_LOG_INFO("Root NET container initialized successfully: ID=%d", (*netContainer)->containerID);
 
     return 0;
 }
@@ -353,6 +362,7 @@ static int create_loopback_for_container(NetContainer *netContainer)
     int rc;
 
     if (!netContainer || !netContainer->group) {
+        CONTAINER_LOG_ERROR("Invalid NET container while creating loopback");
         return -1;
     }
 
@@ -360,6 +370,11 @@ static int create_loopback_for_container(NetContainer *netContainer)
     rc = rtems_bsdnet_initialize_loop_for_container(netContainer->group);
     if (rc != 0) {
         printf("容器%d: loopback 初始化失败 rc=%d\n", netContainer->containerID, rc);
+        CONTAINER_LOG_ERROR(
+          "Failed to initialize loopback for NET container %d: rc=%d",
+          netContainer->containerID,
+          rc
+        );
         return -1;
     }
 
@@ -368,6 +383,10 @@ static int create_loopback_for_container(NetContainer *netContainer)
                netContainer->containerID,
                (void *)netContainer->group->ifnet_p,
                (void *)netContainer->group->in_ifaddr);
+        CONTAINER_LOG_ERROR(
+          "Incomplete loopback data for NET container %d",
+          netContainer->containerID
+        );
         return -1;
     }
 
@@ -378,15 +397,18 @@ static int create_loopback_for_container(NetContainer *netContainer)
     (void) configure_loopback_ipv4_in_container(netContainer);
 
     printf("容器%d: 创建独立的 loopback 接口\n", netContainer->containerID);
+    CONTAINER_LOG_INFO("Loopback ready for NET container: ID=%d", netContainer->containerID);
     return 0;
 }
 
 // 创建子net容器
 NetContainer *rtems_net_container_create(void)
 {
+    CONTAINER_LOG_TRACE("Creating new NET container");
     NetContainer *netContainer = (NetContainer *)_Workspace_Allocate(sizeof(NetContainer));
     if (netContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("Failed to allocate memory for new NET container");
         return NULL;
     }
 
@@ -397,6 +419,7 @@ NetContainer *rtems_net_container_create(void)
     netContainer->group = net_group_new();
     if (netContainer->group == NULL) {
         _Workspace_Free(netContainer);
+        CONTAINER_LOG_ERROR("Failed to initialize net_group for NET container");
         return NULL;
     }
 
@@ -407,11 +430,13 @@ NetContainer *rtems_net_container_create(void)
         printf("错误: 容器%d loopback 接口创建失败\n", netContainer->containerID);
         net_group_free(netContainer->group);
         _Workspace_Free(netContainer);
+        CONTAINER_LOG_ERROR("Failed to create loopback for NET container: ID=%d", netContainer->containerID);
         return NULL;
     }
 
     g_currentNetContainerNum++;
     rtems_net_container_add_to_list(netContainer);
+    CONTAINER_LOG_INFO("New NET container created successfully: ID=%d", netContainer->containerID);
 
     return netContainer;
 }
@@ -434,6 +459,10 @@ static bool switch_to_root_net(Thread_Control *thread, void *arg)
 // 删除子net容器
 void rtems_net_container_delete(NetContainer *netContainer)
 {
+    CONTAINER_LOG_TRACE(
+      "Deleting NET container: container_id=%d",
+      netContainer ? netContainer->containerID : -1
+    );
     if (!netContainer)
         return;
 
@@ -502,6 +531,7 @@ void rtems_net_container_delete(NetContainer *netContainer)
     
     // 释放容器本身
     _Workspace_Free(netContainer);
+    CONTAINER_LOG_INFO("NET container deleted successfully");
 }
 
 // 将net容器添加到链表中
@@ -524,6 +554,7 @@ void rtems_net_container_add_to_list(NetContainer *netContainer)
     *head = new_node;
 
     printf("添加net容器到链表: ID=%d, 地址=%p\n", netContainer->containerID, (void *)netContainer);    //调试完成之后再注释掉
+    CONTAINER_LOG_DEBUG("NET container added to list: ID=%d", netContainer->containerID);
 }
 
 // 从链表中移除net容器
@@ -555,6 +586,7 @@ void rtems_net_container_remove_from_list(NetContainer *netContainer)
 
             _Workspace_Free(current);
             printf("从链表中移除net容器: ID=%d, 地址=%p\n", netContainer->containerID, (void *)netContainer);    //调试完成之后再注释掉
+            CONTAINER_LOG_DEBUG("NET container removed from list: ID=%d", netContainer->containerID);
             return;
         }
         prev = current;
@@ -565,8 +597,10 @@ void rtems_net_container_remove_from_list(NetContainer *netContainer)
 // 移动任务到指定的net容器
 void rtems_net_container_move_task(NetContainer *srcContainer, NetContainer *destContainer, Thread_Control *thread)
 {
-    if (!srcContainer || !destContainer || !thread)
+    if (!srcContainer || !destContainer || !thread) {
+        CONTAINER_LOG_ERROR("Invalid parameters for NET task move");
         return;
+    }
 
     if (thread->container &&
         (thread->container->netContainer == srcContainer))
@@ -578,10 +612,21 @@ void rtems_net_container_move_task(NetContainer *srcContainer, NetContainer *des
             rtems_net_container_delete(srcContainer);
         }
         destContainer->rc++;
+        CONTAINER_LOG_INFO(
+          "Task moved successfully: thread_id=%" PRIu32 " from net=%d to net=%d",
+          thread->Object.id,
+          srcContainer->containerID,
+          destContainer->containerID
+        );
     }
     else
     {
         printf("线程ID=0x%08" PRIx32 " 不在源net容器中\n", thread->Object.id);
+        CONTAINER_LOG_WARN(
+          "Thread not in source NET container: thread_id=%" PRIu32 ", src_id=%d",
+          thread->Object.id,
+          srcContainer->containerID
+        );
     }
 }
 

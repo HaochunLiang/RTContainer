@@ -3,11 +3,16 @@
 #include <rtems/score/threadimpl.h>
 #include <rtems/score/wkspace.h>
 #include <rtems/score/objectimpl.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <rtems/rtems/semdata.h>
 #include <rtems/rtems/intr.h>
+
+#ifdef RTEMSCFG_CONTAINER_LOG
+#include <rtems/score/containerlog.h>
+#endif
 
 static int g_ipcContainerIdCounter = 1;
 static int g_currentIpcContainerNum = 0;
@@ -18,14 +23,17 @@ static void _IPC_Container_Initialize_Semaphore_Info(IpcContainer *container, Ob
 
 int rtems_ipc_container_initialize_root(IpcContainer **ipcContainer)
 {
+    CONTAINER_LOG_TRACE("Initializing root IPC container");
     if (ipcContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("IPC container pointer is NULL");
         return -1;
     }
 
     *ipcContainer = (IpcContainer *)malloc(sizeof(IpcContainer));
     if (*ipcContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("Failed to allocate memory for root IPC container");
         return -1;
     }
     memset(*ipcContainer, 0, sizeof(IpcContainer));
@@ -35,20 +43,23 @@ int rtems_ipc_container_initialize_root(IpcContainer **ipcContainer)
     _IPC_Container_Initialize_RTEMS_Message_Queue_Info(*ipcContainer, 10);
     _IPC_Container_Initialize_Semaphore_Info(*ipcContainer, 20);
     g_currentIpcContainerNum++;
+    CONTAINER_LOG_INFO("Root IPC container initialized successfully: ID=%d", (*ipcContainer)->containerID);
 
     return 0;
 }
 
 IpcContainer *rtems_ipc_container_create(void)
 {
+    CONTAINER_LOG_TRACE("Creating new IPC container");
     IpcContainer *ipcContainer = (IpcContainer *)_Workspace_Allocate(sizeof(IpcContainer));
     if (ipcContainer == NULL)
     {
+        CONTAINER_LOG_ERROR("Failed to allocate memory for new IPC container");
         return NULL;
     }
 
     memset(ipcContainer, 0, sizeof(IpcContainer));
-    ipcContainer->rc = 0;
+    ipcContainer->rc = 1;
     ipcContainer->containerID = ++g_ipcContainerIdCounter;
 
     _IPC_Container_Initialize_RTEMS_Message_Queue_Info(ipcContainer, 5);
@@ -58,6 +69,7 @@ IpcContainer *rtems_ipc_container_create(void)
     g_currentIpcContainerNum++;
 
     rtems_ipc_container_add_to_list(ipcContainer);
+    CONTAINER_LOG_INFO("New IPC container created successfully: ID=%d", ipcContainer->containerID);
 
     return ipcContainer;
 }
@@ -66,17 +78,20 @@ void rtems_ipc_container_delete(IpcContainer *ipcContainer)
 {
     if (!ipcContainer)
     {
+        CONTAINER_LOG_ERROR("Attempting to delete NULL IPC container");
         return;
     }
 
     Container *container = rtems_container_get_root();
     if (!container || !container->ipcContainer)
     {
+        CONTAINER_LOG_ERROR("Root container or IPC container is NULL");
         return;
     }
     IpcContainer *root = container->ipcContainer;
     if (ipcContainer == root) // 不能删除根容器
     {
+        CONTAINER_LOG_WARN("Attempting to delete root IPC container, operation denied");
         return;
     }
     rtems_ipc_container_remove_from_list(ipcContainer);
@@ -110,6 +125,7 @@ void rtems_ipc_container_delete(IpcContainer *ipcContainer)
 
     _Workspace_Free(ipcContainer);
     g_currentIpcContainerNum--;
+    CONTAINER_LOG_INFO("IPC container deleted successfully");
 }
 
 void rtems_ipc_container_add_to_list(IpcContainer *ipcContainer)
@@ -128,11 +144,13 @@ void rtems_ipc_container_add_to_list(IpcContainer *ipcContainer)
     IpcContainerNode *new_node = (IpcContainerNode *)_Workspace_Allocate(sizeof(IpcContainerNode));
     if (!new_node)
     {
+        CONTAINER_LOG_ERROR("Failed to allocate memory for IPC container list node");
         return;
     }
     new_node->ipcContainer = ipcContainer;
     new_node->next = *head;
     *head = new_node;
+    CONTAINER_LOG_DEBUG("IPC container added to list: ID=%d", ipcContainer->containerID);
 }
 
 void rtems_ipc_container_remove_from_list(IpcContainer *ipcContainer)
@@ -163,6 +181,7 @@ void rtems_ipc_container_remove_from_list(IpcContainer *ipcContainer)
                 *head = current->next;
             }
             _Workspace_Free(current);
+            CONTAINER_LOG_DEBUG("IPC container removed from list: ID=%d", ipcContainer->containerID);
             return;
         }
         prev = current;
@@ -172,8 +191,10 @@ void rtems_ipc_container_remove_from_list(IpcContainer *ipcContainer)
 
 void rtems_ipc_container_move_task(IpcContainer *srcContainer, IpcContainer *destContainer, Thread_Control *thread)
 {
-    if (!srcContainer || !destContainer || !thread)
+    if (!srcContainer || !destContainer || !thread) {
+        CONTAINER_LOG_ERROR("Invalid parameters for IPC task move");
         return;
+    }
     if (thread->container && thread->container->ipcContainer == srcContainer)
     {
         thread->container->ipcContainer = destContainer;
@@ -183,6 +204,18 @@ void rtems_ipc_container_move_task(IpcContainer *srcContainer, IpcContainer *des
             rtems_ipc_container_delete(srcContainer);
         }
         destContainer->rc++;
+        CONTAINER_LOG_INFO(
+          "Task moved successfully: thread_id=%" PRIu32 " from ipc=%d to ipc=%d",
+          thread->Object.id,
+          srcContainer->containerID,
+          destContainer->containerID
+        );
+    } else {
+        CONTAINER_LOG_WARN(
+          "Thread not in source IPC container: thread_id=%" PRIu32 ", src_id=%d",
+          thread->Object.id,
+          srcContainer->containerID
+        );
     }
 }
 

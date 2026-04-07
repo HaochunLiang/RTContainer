@@ -82,6 +82,8 @@ links:
 - role: build-dependency
   uid: optcontainer
 - role: build-dependency
+  uid: optcontainerfile
+- role: build-dependency
   uid: optipccontainer
 - role: build-dependency
   uid: optmntcontainer
@@ -91,5 +93,15 @@ links:
   uid: optpidcontainer
 - role: build-dependency
   uid: optutscontainer
+- role: build-dependency
+  uid: optcontainerlog
+- role: build-dependency
+  uid: optmonitorcpu
+- role: build-dependency
+  uid: optmonitormem
+- role: build-dependency
+  uid: optmonitornet
+- role: build-dependency
+  uid: optjffs2summary
 target: cpukit/include/rtems/score/cpuopts.h
 type: build

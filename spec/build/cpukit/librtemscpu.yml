@@ -527,6 +527,8 @@ links:
 - role: build-dependency
   uid: objcontainer
 - role: build-dependency
+  uid: objcontainerfs
+- role: build-dependency
   uid: objpidcontainer
 - role: build-dependency
   uid: objutscontainer
@@ -536,6 +538,10 @@ links:
   uid: objnetcontainer
 - role: build-dependency
   uid: objipccontainer
+- role: build-dependency
+  uid: objcontainerlog
+- role: build-dependency
+  uid: objmonitor
 - role: build-dependency
   uid: vckey
 source:

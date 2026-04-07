@@ -10,6 +10,10 @@
 #include <inttypes.h>
 #include <rtems/rtems/intr.h>
 
+#ifdef RTEMSCFG_CONTAINER_LOG
+#include <rtems/score/containerlog.h>
+#endif
+
 static int g_mntContainerId = 1;
 static const char *current_eval_path = NULL;
 static const char *adjusted_eval_path = NULL;
@@ -36,6 +40,7 @@ const char *get_adjusted_eval_path(void)
 int rtems_mnt_container_initialize_root(MntContainer **mntContainer)
 {
     static MntContainer *rootMntContainer = NULL;
+    CONTAINER_LOG_TRACE("Initializing root MNT container");
     if (!mntContainer)
         return -1;
 
@@ -50,6 +55,7 @@ int rtems_mnt_container_initialize_root(MntContainer **mntContainer)
     }
 
     *mntContainer = rootMntContainer;
+    CONTAINER_LOG_INFO("Root MNT container initialized successfully: ID=%d", rootMntContainer->ID);
     return 0;
 }
 
@@ -129,6 +135,7 @@ static int inherit_mount_points(MntContainer *child, MntContainer *parent)
 
 MntContainer *rtems_mnt_container_create(void)
 {
+    CONTAINER_LOG_TRACE("Creating new MNT container");
     MntContainer *mntContainer = (MntContainer *)malloc(sizeof(MntContainer));
     if (!mntContainer)
         return NULL;
@@ -136,6 +143,7 @@ MntContainer *rtems_mnt_container_create(void)
     mntContainer->rc = 1;
     mntContainer->ID = ++g_mntContainerId;
     rtems_chain_initialize_empty(&mntContainer->mountList);
+    CONTAINER_LOG_INFO("New MNT container created successfully: ID=%d", mntContainer->ID);
 
     return mntContainer;
 }
@@ -149,6 +157,12 @@ MntContainer *rtems_mnt_container_create_with_inheritance(MntContainer *parent)
     if (parent) {
         inherit_mount_points(child, parent);
     }
+
+    CONTAINER_LOG_INFO(
+      "New inherited MNT container created successfully: ID=%d parent=%d",
+      child->ID,
+      parent ? parent->ID : -1
+    );
     
     return child;
 }
@@ -198,6 +212,10 @@ static void cleanup_container_mounts(MntContainer *mntContainer)
 
 void rtems_mnt_container_delete(MntContainer *mntContainer)
 {
+    CONTAINER_LOG_TRACE(
+      "Deleting MNT container: container_id=%d",
+      mntContainer ? mntContainer->ID : -1
+    );
     if (!mntContainer)
         return;
     Container *container = rtems_container_get_root();
@@ -221,12 +239,15 @@ void rtems_mnt_container_delete(MntContainer *mntContainer)
 
     rtems_mnt_container_remove_from_list(mntContainer);
     free(mntContainer);
+    CONTAINER_LOG_INFO("MNT container deleted successfully");
 }
 
 void rtems_mnt_container_move_task(MntContainer *srcContainer, MntContainer *destContainer, Thread_Control *thread)
 {
-    if (!srcContainer || !destContainer || !thread)
+    if (!srcContainer || !destContainer || !thread) {
+        CONTAINER_LOG_ERROR("Invalid parameters for MNT task move");
         return;
+    }
 
     if (thread->container &&
         (thread->container->mntContainer == srcContainer ||
@@ -240,6 +261,12 @@ void rtems_mnt_container_move_task(MntContainer *srcContainer, MntContainer *des
             rtems_mnt_container_delete(srcContainer);
         }
         destContainer->rc++;
+        CONTAINER_LOG_INFO(
+          "Task moved successfully: thread_id=%" PRIu32 " from mnt=%d to mnt=%d",
+          thread->Object.id,
+          srcContainer->ID,
+          destContainer->ID
+        );
     }
 }
 
@@ -258,6 +285,7 @@ void rtems_mnt_container_add_to_list(MntContainer *mntContainer)
     node->mntContainer = mntContainer;
     node->next = *head;
     *head = node;
+    CONTAINER_LOG_DEBUG("MNT container added to list: ID=%d", mntContainer->ID);
 }
 
 void rtems_mnt_container_remove_from_list(MntContainer *mntContainer)
@@ -277,6 +305,7 @@ void rtems_mnt_container_remove_from_list(MntContainer *mntContainer)
             MntContainerNode *toRemove = *cur;
             *cur = toRemove->next;
             free(toRemove);
+            CONTAINER_LOG_DEBUG("MNT container removed from list: ID=%d", mntContainer->ID);
             break;
         }
         cur = &(*cur)->next;

@@ -49,6 +49,26 @@ links:
 - role: build-dependency
   uid: test_ipc_semaphore
 - role: build-dependency
+  uid: test_log_monitor
+- role: build-dependency
+  uid: test_cpu_monitor
+- role: build-dependency
+  uid: test_cpu_monitor_detailed
+- role: build-dependency
+  uid: test_cpu_monitor_performance
+- role: build-dependency
+  uid: test_mem_monitor
+- role: build-dependency
+  uid: test_mem_monitor_detailed
+- role: build-dependency
+  uid: test_mem_monitor_performance
+- role: build-dependency
+  uid: test_net_monitor
+- role: build-dependency
+  uid: test_net_monitor_detailed
+- role: build-dependency
+  uid: test_net_monitor_performance
+- role: build-dependency
   uid: test_pid
 - role: build-dependency
   uid: test_uts

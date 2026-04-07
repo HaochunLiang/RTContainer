@@ -1,0 +1,17 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+actions:
+- get-boolean: null
+- env-enable: null
+- define-condition: null
+build-type: option
+copyrights:
+- Copyright (C) 2026 RTEMS Container Project
+default:
+- enabled-by: true
+  value: false
+description: |
+  Enable IMFS control-file support for container management.
+enabled-by: true
+links: []
+name: RTEMSCFG_CONTAINER_FILE
+type: build
