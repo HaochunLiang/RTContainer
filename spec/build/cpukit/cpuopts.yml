@@ -54,6 +54,8 @@ links:
 - role: build-dependency
   uid: optcgroup
 - role: build-dependency
+  uid: optiocgroup
+- role: build-dependency
   uid: optlibdebugger
 - role: build-dependency
   uid: optlibdl

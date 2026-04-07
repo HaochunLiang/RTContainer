@@ -122,6 +122,7 @@ install:
   - cpukit/include/rtems/init.h
   - cpukit/include/rtems/inttypes.h
   - cpukit/include/rtems/io.h
+  - cpukit/include/rtems/io_cgroup.h
   - cpukit/include/rtems/ioimpl.h
   - cpukit/include/rtems/iosupp.h
   - cpukit/include/rtems/irq-extension.h
@@ -520,6 +521,8 @@ links:
   uid: objshell
 - role: build-dependency
   uid: objcgroup
+- role: build-dependency
+  uid: objiocgroup
 - role: build-dependency
   uid: objsmp
 - role: build-dependency

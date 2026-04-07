@@ -1,0 +1,14 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2026 RTEMS Container Project
+cppflags: []
+cxxflags: []
+enabled-by: RTEMSCFG_IO_CGROUP
+includes: []
+install: []
+links: []
+source:
+- cpukit/score/src/io_cgroup.c
+type: build
