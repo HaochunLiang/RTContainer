@@ -42,6 +42,10 @@
 #include <rtems/score/coresemimpl.h>
 #include <rtems/score/mrspimpl.h>
 
+#ifdef RTEMSCFG_IPC_CONTAINER
+#include <rtems/score/ipcContainer.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -165,7 +169,12 @@ static inline const Thread_queue_Operations *_Semaphore_Get_operations(
  */
 static inline Semaphore_Control *_Semaphore_Allocate( void )
 {
-  return (Semaphore_Control *) _Objects_Allocate( &_Semaphore_Information );
+  return (Semaphore_Control *) 
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Objects_Allocate( _Semaphore_Get_information_from_container() );
+#else
+    _Objects_Allocate( &_Semaphore_Information );
+#endif
 }
 
 /**
@@ -179,7 +188,14 @@ static inline void _Semaphore_Free (
   Semaphore_Control *the_semaphore
 )
 {
+#ifdef RTEMSCFG_IPC_CONTAINER
+  _Objects_Free( 
+    _Semaphore_Get_information_from_container(), 
+    &the_semaphore->Object 
+  );
+#else
   _Objects_Free( &_Semaphore_Information, &the_semaphore->Object );
+#endif
 }
 
 static inline Semaphore_Control *_Semaphore_Get(
@@ -191,7 +207,11 @@ static inline Semaphore_Control *_Semaphore_Get(
   return (Semaphore_Control *) _Objects_Get(
     id,
     &queue_context->Lock_context.Lock_context,
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Semaphore_Get_information_from_container()
+#else
     &_Semaphore_Information
+#endif
   );
 }
 

@@ -47,6 +47,18 @@
 
 _start:
 
+  /* FIX: Immediate gate for secondary cores to prevent race conditions and log spam */
+  /* Read MPIDR_EL1 to check Core ID */
+  mrs x9, MPIDR_EL1
+  and x9, x9, #0xff      /* Mask to get Affirmity 0 (Core ID) */
+  cbz x9, .Lprimary_core_execution
+
+.Lsecondary_core_gate_early:
+  wfe
+  b .Lsecondary_core_gate_early
+
+.Lprimary_core_execution:
+
   /*
    * We do not save the context since we do not return to the boot
    * loader but preserve x1 and x2 to allow access to bootloader parameters
@@ -189,8 +201,8 @@ _start:
   orr x0, x0, #1
   msr SCR_EL3, x0
 
-  /* set EL2h mode for eret */
-  mov x0, #0b01001
+  /* set EL2h mode for eret, mask DAIF */
+  mov x0, #0x3c9
   msr SPSR_EL3, x0
 
   /* Set EL2 entry point */
@@ -203,37 +215,78 @@ _start:
   defined(BSP_START_ENABLE_EL3_START_SUPPORT)
 .L_el2_start:
   /* Drop from EL2 to EL1 */
+  /* MASK ALL INTERRUPTS (DAIF) TO PREVENT CRASHES */
+  msr DAIFSet, #0xf
+  isb
 
-  /* Configure HCR_EL2 */
-  mrs x0, HCR_EL2
-  /* Set EL1 Execution state to AArch64 */
-  orr x0, x0, #(1<<31)
-  /* Disable ID traps */
-  bic x0, x0, #(1<<15)
-  bic x0, x0, #(1<<16)
-  bic x0, x0, #(1<<17)
-  bic x0, x0, #(1<<18)
+  /* NO DEBUG PRINTS IN CRITICAL SECTION TO AVOID TIMING ISSUES/CRASHES */
+
+  /* Configure CNTHCTL_EL2 to allow EL1 timer access */
+  /* Enable EL1PCTEN (Bit 0) and EL1PCEN (Bit 1) */
+  mov x0, #3
+  msr CNTHCTL_EL2, x0
+  isb
+
+  /* BLIND WRITE HCR_EL2 */
+  /* RW=1 (Bit 31) for AArch64 EL1 execution. TGE=0. VM=0. All traps disabled. */
+  mov x0, #(1<<31)
   msr HCR_EL2, x0
+  isb
 
-  /* Set to EL1h mode for eret */
-  mov x0, #0b00101
+  /* Configure SCTLR_EL1 - Clear M, C, I, A */
+  mov x0, xzr
+  msr SCTLR_EL1, x0
+  isb
+
+  /* Configure SPSR_EL2 */
+  mov x0, #0x3c5             /* DAIF masked, M=EL1h */
   msr SPSR_EL2, x0
 
-  /* Set EL1 entry point */
+  /* Configure ELR_EL2 */
   adr x0, .L_el1_start
   msr ELR_EL2, x0
+  
+  /* Final synchronization and switch */
+  dsb sy
+  isb
   eret
 
 .L_el1_start:
 #endif
 
 #ifdef RTEMS_SMP
+  /* 
+   * Get CPU ID without using stack (safe as it is a leaf function)
+   * We need this to calculate a unique stack for each core.
+   */
   bl _AArch64_Get_current_processor_for_system_start
+  mov x19, x0               /* Save CPU ID to x19 */
+
+  /* FIX: Gate all secondary cores (ID != 0) immediately to prevent race conditions */
+  cbnz x0, .Lsecondary_core_gate
+
+  /* Restore x0 for logic */
+  mov x0, x19
+
+  /* 
+   * SETUP PER-CORE STACK
+   * SP = _ISR_Stack_area_begin + (cpu_id + 1) * _ISR_Stack_size
+   */
+#ifdef AARCH64_MULTILIB_ARCH_V8_ILP32
+  ldr w1, =_ISR_Stack_size
+  ldr w2, =_ISR_Stack_area_begin
+#else
+  ldr x1, =_ISR_Stack_size
+  ldr x2, =_ISR_Stack_area_begin
+#endif
+  
+  add x3, x19, #1           /* x3 = cpu_id + 1 */
+  mul x4, x1, x3            /* x4 = size * (cpu_id + 1) */
+  add x5, x4, x2            /* x5 = begin + offset */
+  mov sp, x5                /* Set SP */
 
   /*
-   * Check that this is a configured processor.  If not, then there is
-   * not much that can be done since we do not have a stack available for
-   * this processor.  Just loop forever in this case.
+   * Check that this is a configured processor.  If not, loop forever.
    */
 #ifdef AARCH64_MULTILIB_ARCH_V8_ILP32
   ldr w1, =_SMP_Processor_configured_maximum
@@ -241,8 +294,11 @@ _start:
   ldr x1, =_SMP_Processor_configured_maximum
 #endif
   ldr w1, [x1]
+
   cmp x1, x0
   bgt .Lconfigured_processor
+
+.Lsecondary_core_gate:
 .Linvalid_processor_wait_for_ever:
   wfe
   b .Linvalid_processor_wait_for_ever

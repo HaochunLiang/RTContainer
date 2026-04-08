@@ -51,7 +51,8 @@ static void print_mt_entry_locations(
 
 static void lsof(void)
 {
-  const rtems_chain_control *mt_chain = &rtems_filesystem_mount_table;
+  // const rtems_chain_control *mt_chain = &rtems_filesystem_mount_table;
+  const rtems_chain_control *mt_chain = get_mount_table();
   const rtems_chain_node *mt_node;
 
   fprintf(

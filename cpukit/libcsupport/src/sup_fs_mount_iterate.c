@@ -44,7 +44,8 @@ bool rtems_filesystem_mount_iterate(
   void *visitor_arg
 )
 {
-  rtems_chain_control *chain = &rtems_filesystem_mount_table;
+  // rtems_chain_control *chain = &rtems_filesystem_mount_table;
+  rtems_chain_control *chain = get_mount_table();
   rtems_chain_node *node = NULL;
   bool stop = false;
 

@@ -1,0 +1,20 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: objects
+cflags: []
+copyrights:
+- Copyright (C) 2026 RTEMS Container Project
+cppflags: []
+cxxflags: []
+enabled-by: RTEMSCFG_NET_CONTAINER
+includes:
+- cpukit/libnetworking
+install:
+- destination: ${BSP_INCLUDEDIR}/rtems/score
+  source:
+  - cpukit/include/rtems/score/netContainer.h
+links:
+- role: build-dependency
+  uid: objlibnetworking
+source:
+- cpukit/score/src/netContainer.c
+type: build

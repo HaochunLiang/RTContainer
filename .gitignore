@@ -1,6 +1,7 @@
 /build
 doc
 /*.ini
+!/config.ini
 .lock*
 *.pyc
 .waf*

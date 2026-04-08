@@ -1687,6 +1687,13 @@ extern const rtems_filesystem_table_t rtems_filesystem_table [];
 extern rtems_chain_control rtems_filesystem_mount_table;
 
 /**
+ * @brief Returns the mount table.
+ *
+ * @return The mount table.
+ */
+rtems_chain_control *get_mount_table(void);
+
+/**
  * @brief Registers a file system @a type.
  *
  * The @a mount_h handler will be used to mount a file system of this @a type.

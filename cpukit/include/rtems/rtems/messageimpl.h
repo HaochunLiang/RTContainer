@@ -41,6 +41,11 @@
 #include <rtems/score/objectimpl.h>
 #include <rtems/score/coremsgimpl.h>
 
+#ifdef RTEMSCFG_IPC_CONTAINER
+#include <rtems/score/ipcContainer.h>
+#endif
+#include <rtems/score/threadimpl.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,7 +106,14 @@ static inline void _Message_queue_Free (
   Message_queue_Control *the_message_queue
 )
 {
+#ifdef RTEMSCFG_IPC_CONTAINER
+  _Objects_Free( 
+    _Message_queue_Get_information_from_container(), 
+    &the_message_queue->Object 
+  );
+#else
   _Objects_Free( &_Message_queue_Information, &the_message_queue->Object );
+#endif
 }
 
 static inline Message_queue_Control *_Message_queue_Get(
@@ -113,14 +125,22 @@ static inline Message_queue_Control *_Message_queue_Get(
   return (Message_queue_Control *) _Objects_Get(
     id,
     &queue_context->Lock_context.Lock_context,
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Message_queue_Get_information_from_container()    //当前正在运行的线程会变化
+#else
     &_Message_queue_Information
+#endif
   );
 }
 
 static inline Message_queue_Control *_Message_queue_Allocate( void )
 {
   return (Message_queue_Control *)
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Objects_Allocate( _Message_queue_Get_information_from_container() );
+#else
     _Objects_Allocate( &_Message_queue_Information );
+#endif
 }
 
 /**

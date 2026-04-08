@@ -46,6 +46,8 @@
 #include <rtems/score/coremsgimpl.h>
 #include <rtems/sysinit.h>
 
+#include <rtems/score/ipcContainer.h>
+
 static void *_Message_queue_Get_buffers(
   CORE_message_queue_Control *the_message_queue,
   size_t                      size,
@@ -145,7 +147,11 @@ rtems_status_code _Message_queue_Create(
   if (
     is_global
       && !_Objects_MP_Allocate_and_open(
+#ifdef RTEMSCFG_IPC_CONTAINER
+            _Message_queue_Get_information_from_container(),
+#else
             &_Message_queue_Information,
+#endif
             config->name,
             the_message_queue->Object.id,
             false
@@ -178,7 +184,12 @@ rtems_status_code _Message_queue_Create(
 #if defined(RTEMS_MULTIPROCESSING)
     if ( is_global )
         _Objects_MP_Close(
-          &_Message_queue_Information, the_message_queue->Object.id);
+#ifdef RTEMSCFG_IPC_CONTAINER
+          _Message_queue_Get_information_from_container(),
+#else
+          &_Message_queue_Information,
+#endif
+          the_message_queue->Object.id);
 #endif
 
     _Message_queue_Free( the_message_queue );
@@ -187,7 +198,11 @@ rtems_status_code _Message_queue_Create(
   }
 
   *id = _Objects_Open_u32(
+#ifdef RTEMSCFG_IPC_CONTAINER
+    _Message_queue_Get_information_from_container(),
+#else
     &_Message_queue_Information,
+#endif
     &the_message_queue->Object,
     config->name
   );

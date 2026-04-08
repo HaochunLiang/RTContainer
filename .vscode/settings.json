@@ -1,0 +1,14 @@
+{
+    "cmake.sourceDirectory": "/home/lyj/rtems6.1/rtems-container-6.1/contrib/cpukit/zlib",
+    "files.associations": {
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        "*.pkl": "bat",
+        "threadimpl.h": "c",
+        "libio_.h": "c",
+        "libio.h": "c",
+        "random": "c",
+        "container.h": "c"
+    }
+}

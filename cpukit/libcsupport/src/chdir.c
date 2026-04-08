@@ -44,22 +44,43 @@
 #include <unistd.h>
 
 #include <rtems/libio_.h>
+#ifdef RTEMSCFG_MNT_CONTAINER
+#include <rtems/score/threadimpl.h>
+#endif
 
-int rtems_filesystem_chdir( rtems_filesystem_location_info_t *loc )
+int rtems_filesystem_chdir(rtems_filesystem_location_info_t *loc)
 {
   int rv = 0;
   rtems_filesystem_global_location_t *global_loc =
-    rtems_filesystem_location_transform_to_global( loc );
-  mode_t type = rtems_filesystem_location_type( &global_loc->location );
+      rtems_filesystem_location_transform_to_global(loc);
+  mode_t type = rtems_filesystem_location_type(&global_loc->location);
 
-  if ( S_ISDIR( type ) ) {
+  if (S_ISDIR(type))
+  {
+#ifdef RTEMSCFG_MNT_CONTAINER
+    Thread_Control *executing = _Thread_Get_executing();
+    if (executing && executing->user_environment)
+    {
+        rtems_filesystem_global_location_assign(
+            &executing->user_environment->current_directory,
+            global_loc);
+    }
+    else
+    {
+        rtems_filesystem_global_location_assign(
+            &rtems_filesystem_current,
+            global_loc);
+    }
+#else
     rtems_filesystem_global_location_assign(
-      &rtems_filesystem_current,
-      global_loc
-    );
-  } else {
-    rtems_filesystem_location_error( &global_loc->location, ENOTDIR );
-    rtems_filesystem_global_location_release( global_loc, true );
+        &rtems_filesystem_current,
+        global_loc);
+#endif
+  }
+  else
+  {
+    rtems_filesystem_location_error(&global_loc->location, ENOTDIR);
+    rtems_filesystem_global_location_release(global_loc, true);
     rv = -1;
   }
 
