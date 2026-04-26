@@ -104,6 +104,13 @@ static void verify_entered_container(
   rtems_test_assert(child_queue != root_queue);
 
   sc = rtems_message_queue_ident(queue_name, RTEMS_SEARCH_ALL_NODES, &ignored);
+  printf(
+    "container01: ident(name=IPCQ) sc=%d ignored=0x%08" PRIx32 " child=0x%08" PRIx32 " root=0x%08" PRIx32 "\n",
+    (int) sc,
+    ignored,
+    child_queue,
+    root_queue
+  );
   rtems_test_assert(sc == RTEMS_SUCCESSFUL);
   rtems_test_assert(ignored == child_queue);
 
