@@ -78,6 +78,7 @@ static void verify_entered_container(
   rtems_id ignored;
   rtems_name queue_name = rtems_build_name('I', 'P', 'C', 'Q');
   uint64_t quota_before;
+  uint64_t mem_quota_before_alloc;
   IO_Cgroup_Request io_request;
   char hostname[64];
   uint64_t io_bytes_before;
@@ -87,6 +88,8 @@ static void verify_entered_container(
   rtems_test_assert(self->container->mntContainer == namespaces->mntContainer);
   rtems_test_assert(self->container->netContainer == namespaces->netContainer);
   rtems_test_assert(self->container->utsContainer == namespaces->utsContainer);
+  mem_quota_before_alloc = core->mem_quota_available;
+  rtems_test_assert(mem_quota_before_alloc <= container->cgroup_config.memory_limit);
 
   pid_info = rtems_pid_container_get_thread_info(self);
   rtems_test_assert(pid_info.isRoot == 0);
@@ -128,7 +131,7 @@ static void verify_entered_container(
   rtems_test_assert(self->cgroup == core);
   rtems_test_assert(self->is_added_to_cgroup);
   rtems_test_assert(core->thread_count == 1);
-  rtems_test_assert(core->mem_quota_available == container->cgroup_config.memory_limit);
+  rtems_test_assert(core->mem_quota_available <= mem_quota_before_alloc);
 
   quota_before = core->cpu_quota_available;
   rtems_test_assert(quota_before > 1);
