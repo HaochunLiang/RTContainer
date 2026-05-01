@@ -18,6 +18,8 @@ const char rtems_test_name[] = "CONTAINER 02";
 #define DONE_EVENT_0 RTEMS_EVENT_0
 #define DONE_EVENT_1 RTEMS_EVENT_1
 #define TARGET_SWITCHES 1000u
+#define PROGRESS_PRINT_INTERVAL 100u
+#define MEASUREMENT_TIMEOUT_SECONDS 30u
 
 typedef struct {
   uint32_t id;
@@ -75,6 +77,13 @@ static rtems_task worker_task(rtems_task_argument arg)
       if (previous_runner != 0u) {
         total_switch_ticks += rtems_counter_difference(now, last_switch_tick);
         ++switch_count;
+        if ((switch_count % PROGRESS_PRINT_INTERVAL) == 0u) {
+          printf(
+            "container switch progress: %" PRIu32 "/%" PRIu32 "\n",
+            switch_count,
+            TARGET_SWITCHES
+          );
+        }
         if (switch_count >= TARGET_SWITCHES) {
           stop_measurement = true;
         }
@@ -100,6 +109,7 @@ static rtems_task Init(rtems_task_argument arg)
   rtems_event_set received;
   rtems_status_code sc;
   uint64_t avg_ns;
+  uint32_t elapsed_seconds;
 
   (void) arg;
 
@@ -150,13 +160,40 @@ static rtems_task Init(rtems_task_argument arg)
   rtems_task_wake_after(1);
   start_measurement = true;
 
-  sc = rtems_event_receive(
-    DONE_EVENT_0 | DONE_EVENT_1,
-    RTEMS_EVENT_ALL | RTEMS_WAIT,
-    RTEMS_NO_TIMEOUT,
-    &received
-  );
-  rtems_test_assert(sc == RTEMS_SUCCESSFUL);
+  for (elapsed_seconds = 0; elapsed_seconds < MEASUREMENT_TIMEOUT_SECONDS; ++elapsed_seconds) {
+    sc = rtems_event_receive(
+      DONE_EVENT_0 | DONE_EVENT_1,
+      RTEMS_EVENT_ALL | RTEMS_WAIT,
+      rtems_clock_get_ticks_per_second(),
+      &received
+    );
+
+    if (sc == RTEMS_SUCCESSFUL) {
+      break;
+    }
+
+    if (sc == RTEMS_TIMEOUT) {
+      printf(
+        "waiting... elapsed=%" PRIu32 "s switches=%" PRIu32 " total_ticks=%" PRIu64 "\n",
+        elapsed_seconds + 1u,
+        switch_count,
+        (uint64_t) total_switch_ticks
+      );
+      continue;
+    }
+
+    rtems_test_assert(false);
+  }
+
+  if (sc != RTEMS_SUCCESSFUL) {
+    stop_measurement = true;
+    printf(
+      "measurement timeout after %" PRIu32 "s, switches=%" PRIu32 "\n",
+      MEASUREMENT_TIMEOUT_SECONDS,
+      switch_count
+    );
+    rtems_test_assert(false);
+  }
   rtems_test_assert(switch_count >= TARGET_SWITCHES);
 
   avg_ns = rtems_counter_ticks_to_nanoseconds(total_switch_ticks) / switch_count;
