@@ -26,6 +26,8 @@ ldflags:
 links:
 - role: build-dependency
   uid: container01
+- role: build-dependency
+  uid: container02
 type: build
 use-after:
 - rtemstest
