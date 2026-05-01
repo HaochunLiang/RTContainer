@@ -108,7 +108,7 @@ static rtems_task Init(rtems_task_argument arg)
   RtemsContainer *container_b;
   rtems_event_set received;
   rtems_status_code sc;
-  uint64_t avg_ns;
+  uint64_t avg_us;
   uint32_t elapsed_seconds;
 
   (void) arg;
@@ -196,14 +196,14 @@ static rtems_task Init(rtems_task_argument arg)
   }
   rtems_test_assert(switch_count >= TARGET_SWITCHES);
 
-  avg_ns = rtems_counter_ticks_to_nanoseconds(total_switch_ticks) / switch_count;
+  avg_us = rtems_counter_ticks_to_nanoseconds(total_switch_ticks) / (switch_count * 1000u);
 
   printf(
     "container switch statistics: switches=%" PRIu32 ", total_ticks=%" PRIu64 "\n",
     switch_count,
     (uint64_t) total_switch_ticks
   );
-  printf("container switch average time: %" PRIu64 " ns\n", avg_ns);
+  printf("container switch average time: %" PRIu64 " us\n", avg_us);
 
   sc = rtems_unified_container_delete(container_a);
   rtems_test_assert(sc == RTEMS_SUCCESSFUL);
