@@ -99,9 +99,6 @@ int rtems_net_container_initialize_root(NetContainer **netContainer);
 // 创建子net容器
 NetContainer *rtems_net_container_create(void);
 
-/* Initialize the per-container loopback on first entry. */
-int rtems_net_container_initialize(NetContainer *netContainer);
-
 // 删除子net容器
 void rtems_net_container_delete(NetContainer *netContainer);
 

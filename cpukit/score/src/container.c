@@ -447,10 +447,6 @@ rtems_status_code rtems_unified_container_enter(
         NetContainer *src = thread->container->netContainer;
         NetContainer *dst = container->namespaces.netContainer;
 
-        if (dst != NULL && rtems_net_container_initialize(dst) != 0) {
-            return RTEMS_UNSATISFIED;
-        }
-
         if (src != dst) {
             rtems_net_container_move_task(src, dst, thread);
         }

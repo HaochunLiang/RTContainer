@@ -59,6 +59,26 @@ static void net_group_free(net_group *group);
 static bool switch_to_root_net(Thread_Control *thread, void *arg);
 static int create_loopback_for_container(NetContainer *netContainer);
 
+/* Check whether the active routing table contains a route owned by this
+ * interface address.  rtinit() itself does this check during deletion, but it
+ * cannot be used to probe both the root and child tables safely: deleting the
+ * first route may release the ifaddr.  Keep the probe separate and hold an
+ * extra ifaddr reference while both tables are inspected. */
+static bool route_uses_ifa(struct sockaddr *dst, struct ifaddr *ifa)
+{
+    struct rtentry *rt;
+    bool match;
+
+    rt = rtalloc1(dst, 0, 0UL);
+    if (rt == NULL) {
+        return false;
+    }
+
+    match = rt->rt_ifa == ifa;
+    rtfree(rt);
+    return match;
+}
+
 static int install_container_loopback_route(NetContainer *netContainer)
 {
     struct in_ifaddr *ia;
@@ -421,24 +441,20 @@ NetContainer *rtems_net_container_create(void)
 
     // printf("创建网络隔离容器: ID=%d\n", netContainer->containerID);
 
+    // 为容器创建独立的 loopback 接口
+    if (create_loopback_for_container(netContainer) != 0) {
+        printf("错误: 容器%d loopback 接口创建失败\n", netContainer->containerID);
+        net_group_free(netContainer->group);
+        free(netContainer);
+        CONTAINER_LOG_ERROR("Failed to create loopback for NET container: ID=%d", netContainer->containerID);
+        return NULL;
+    }
+
     g_currentNetContainerNum++;
     rtems_net_container_add_to_list(netContainer);
     CONTAINER_LOG_INFO("New NET container created successfully: ID=%d", netContainer->containerID);
 
     return netContainer;
-}
-
-int rtems_net_container_initialize(NetContainer *netContainer)
-{
-    if (netContainer == NULL || netContainer->group == NULL) {
-        return -1;
-    }
-
-    if (netContainer->group->ifnet_p != NULL) {
-        return 0;
-    }
-
-    return create_loopback_for_container(netContainer);
 }
 
 static bool switch_to_root_net(Thread_Control *thread, void *arg)
@@ -505,15 +521,56 @@ void rtems_net_container_delete(NetContainer *netContainer)
              * using rtems_net_container_move_task here would drop the last
              * reference and recursively delete the container. */
             saved_net = self->container->netContainer;
-            self->container->netContainer = netContainer;
         }
 
-        for (ia = group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
+        for (ia = group->in_ifaddr; ia != NULL; ) {
+            struct in_ifaddr *next = ia->ia_next;
+            bool child_route;
+            bool root_route = false;
+
             ia->ia_ifa.ifa_addr = (struct sockaddr *) &ia->ia_addr;
             ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
             ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
             ia->ia_ifa.ifa_ifp = ia->ia_ifp;
-            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+
+            /* Keep the address object alive while probing and removing a
+             * possible route in each table.  rtinit() drops the route's
+             * ifaddr reference and may otherwise free this object after the
+             * first deletion. */
+            ia->ia_ifa.ifa_refcnt++;
+            if (saved_net != NULL) {
+                self->container->netContainer = netContainer;
+            }
+            child_route = route_uses_ifa(
+                ia->ia_ifa.ifa_dstaddr, &ia->ia_ifa
+            );
+            if (saved_net != NULL) {
+                self->container->netContainer = saved_net;
+                root_route = route_uses_ifa(
+                    ia->ia_ifa.ifa_dstaddr, &ia->ia_ifa
+                );
+                self->container->netContainer = netContainer;
+            }
+
+            if (root_route) {
+                self->container->netContainer = saved_net;
+                (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+                self->container->netContainer = netContainer;
+            }
+            if (child_route) {
+                if (saved_net != NULL) {
+                    self->container->netContainer = netContainer;
+                }
+                (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+            }
+
+            /* Drop the temporary pin.  Leave the normal BSD networking
+             * ownership/reference accounting untouched. */
+            if (ia->ia_ifa.ifa_refcnt > 0) {
+                ia->ia_ifa.ifa_refcnt--;
+            }
+
+            ia = next;
         }
 
         if (saved_net != NULL) {
@@ -521,8 +578,8 @@ void rtems_net_container_delete(NetContainer *netContainer)
         }
 
         /* The BSD networking code owns the loopback interface/address
-         * allocations.  Route teardown drops their references; freeing the
-         * objects here can race that teardown and cause INVALID_HEAP_FREE. */
+         * allocations.  Keep those objects alive after route teardown;
+         * freeing an embedded ifaddr here can race stale BSD references. */
         group->ifnet_p = NULL;
         group->in_ifaddr = NULL;
 
