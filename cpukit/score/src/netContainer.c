@@ -487,10 +487,7 @@ void rtems_net_container_delete(NetContainer *netContainer)
     // 从链表中移除
     rtems_net_container_remove_from_list(netContainer);
 
-    /* Remove routes before releasing the interface address objects.  The
-     * loopback setup can install the route in either the root or the child
-     * routing table, depending on which container the creating thread was
-     * using at the time. */
+    /* Remove child routes before releasing the container metadata. */
     if (netContainer->group) {
         net_group *group = netContainer->group;
         Thread_Control *self = (Thread_Control *) _Thread_Get_executing();
@@ -519,29 +516,9 @@ void rtems_net_container_delete(NetContainer *netContainer)
             self->container->netContainer = saved_net;
         }
 
-        /* The route may have been installed in the root table before the
-         * creator entered the child.  Try that table as well. */
-        for (ia = group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
-            ia->ia_ifa.ifa_addr = (struct sockaddr *) &ia->ia_addr;
-            ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
-            ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
-            ia->ia_ifa.ifa_ifp = ia->ia_ifp;
-            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
-            ia->ia_flags &= ~IFA_ROUTE;
-        }
-
-        /* Release the dynamically allocated interface and address list only
-         * after all routing references have been dropped. */
-        struct ifnet *ifp = group->ifnet_p;
-        if (ifp != NULL) {
-            struct ifaddr *ifa = ifp->if_addrlist;
-            while (ifa != NULL) {
-                struct ifaddr *next = ifa->ifa_next;
-                free(ifa);
-                ifa = next;
-            }
-            free(ifp);
-        }
+        /* The BSD networking code owns the loopback interface/address
+         * allocations.  Route teardown drops their references; freeing the
+         * objects here can race that teardown and cause INVALID_HEAP_FREE. */
         group->ifnet_p = NULL;
         group->in_ifaddr = NULL;
 
