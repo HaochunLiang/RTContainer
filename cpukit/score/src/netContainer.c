@@ -493,6 +493,7 @@ void rtems_net_container_delete(NetContainer *netContainer)
         Thread_Control *self = (Thread_Control *) _Thread_Get_executing();
         NetContainer *saved_net = NULL;
         struct in_ifaddr *ia;
+        bool try_root_route;
 
         if (self != NULL && self->container != NULL &&
             self->container->netContainer != netContainer) {
@@ -509,7 +510,24 @@ void rtems_net_container_delete(NetContainer *netContainer)
             ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
             ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
             ia->ia_ifa.ifa_ifp = ia->ia_ifp;
-            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+            try_root_route = rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST) != 0 ||
+                ia->ia_ifa.ifa_refcnt != 0;
+
+            if (saved_net != NULL) {
+                self->container->netContainer = saved_net;
+            }
+
+            /* A few older network setup paths installed the route in the
+             * root table before switching to the child.  Retry there only
+             * when the child route was absent or another reference remains.
+             */
+            if (try_root_route) {
+                (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+            }
+
+            if (saved_net != NULL) {
+                self->container->netContainer = netContainer;
+            }
         }
 
         if (saved_net != NULL) {
