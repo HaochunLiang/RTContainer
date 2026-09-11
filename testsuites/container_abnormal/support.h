@@ -29,12 +29,15 @@ static rtems_task abnormal_watchdog(rtems_task_argument arg)
 
 static void abnormal_begin(void)
 {
+  rtems_status_code sc;
+
   TEST_BEGIN();
-  rtems_test_assert(rtems_task_create(
+  sc = rtems_task_create(
     rtems_build_name('A', 'B', 'W', 'D'), 1,
     2 * RTEMS_MINIMUM_STACK_SIZE, RTEMS_DEFAULT_MODES,
     RTEMS_DEFAULT_ATTRIBUTES, &abnormal_watchdog_id
-  ) == RTEMS_SUCCESSFUL);
+  );
+  directive_failed(sc, "create abnormal-test watchdog");
   rtems_test_assert(rtems_task_start(
     abnormal_watchdog_id, abnormal_watchdog, 0
   ) == RTEMS_SUCCESSFUL);

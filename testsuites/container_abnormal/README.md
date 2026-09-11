@@ -2,7 +2,7 @@
 
 每个用例位于独立的 `container_abnormalXX/init.c`，沿用
 `testsuites/container` 的 RTEMS Init 任务、断言和 YAML 构建注册方式。
-本次只编写源码、构建配置及运行脚本，未编译或运行测试。
+源码、构建配置及运行脚本在工作区维护；编译和运行由用户在工具链容器中执行。
 
 | 用例 | 对应需求 | 实际检查 |
 | --- | --- | --- |
@@ -35,6 +35,9 @@ cd /home/neu/RTContainer
 配置启用独立开关 `BUILD_CONTAINERABNORMALTESTS`，并启用全部所需容器模块、
 `RTEMSCFG_CONTAINER_FILE` 和 `RTEMSCFG_CONTAINER_LOG`。
 仅选择本组五个用例，BSP 为 `aarch64/a53_lp64_qemu`，采用单核配置。
+本仓库的这个 BSP 不开放 `RTEMS_SMP` 配置选项，无需添加 `RTEMS_SMP = False`。
+如果旧配置显示 `Unknown configuration option: RTEMS_SMP`，删除该行后重新
+configure 即可；该提示不是配置失败，也不是运行时崩溃的原因。
 输出文件为：
 
 ```text
@@ -89,14 +92,27 @@ qemu-system-aarch64 -M virt,gic-version=3 \
 
 ## 当前接口的预期差异
 
+- 02、05 为使用双倍最小栈的任务显式配置了额外栈空间；03 允许未配置宿主
+  网络接口时根 NET 容器的接口指针为空。启动阶段的任务创建失败或根接口
+  断言失败不属于预期的故障注入结果。
 - 02 是针对需求的严格回归测试。当前 `containerfs.c` 的控制文件写入处理
   对错误也返回写入长度，且当前 cgroup pause/resume 实现接受重复操作，因而
   预计会报告断言失败。测试会尽量继续执行恢复与清理，最后统一报告失败。
 - 01 的资源快照检查会报告现有回滚路径中的堆或工作区泄漏；不会把命名空间
-  从链表移除就当作完整回收。实际运行结果需在容器编译后确认。
+  从链表移除就当作完整回收。快照不一致时还需结合资源变化及后台活动判断
+  原因，不能仅凭该断言认定泄漏；测试会打印资源变化和恢复阶段的操作位置。
 - 04 的 `rtems_io_cgroup_handle_request()` 只负责准入和统计；实际读失败来自
   RAM Disk，经 `rtems_bdbuf_read()` 返回。这里检查的是读请求故障，不将
   cgroup 准入成功或缓存命中视为设备 IO 成功。
 - 05 的公开日志接口没有丢弃计数查询，测试以保留日志的连续序号和容量推导、
   核对覆盖数量；这不等于验证内核维护的独立丢弃计数器。当前日志插入接口也
   不返回文件写错误，测试通过故障设备收到的失败写请求确认故障确实发生。
+
+若 01 出现 CPU 异常，需要使用产生该日志时的同一份 `.exe` 解析 PC/LR，不能
+用重新编译后的文件解析旧地址。例如，用户首轮日志中的地址可这样解析：
+
+```sh
+/opt/rtems6/bin/aarch64-rtems6-addr2line -a -f -C \
+  -e build-container-abnormal/aarch64/a53_lp64_qemu/testsuites/container_abnormal/container_abnormal01.exe \
+  0x400317d8 0x40019770
+```

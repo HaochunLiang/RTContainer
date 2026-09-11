@@ -100,6 +100,7 @@ static rtems_task Init(rtems_task_argument arg)
     "resume 4294967295", "set 4294967295 10 100", "delete 4294967295"
   };
   RtemsContainerConfig config;
+  rtems_status_code sc;
   rtems_event_set received;
   rtems_id deleted_id;
   uint32_t count;
@@ -123,11 +124,12 @@ static rtems_task Init(rtems_task_argument arg)
     rtems_test_assert(rtems_unified_container_create(
       &config, &containers[i]
     ) == RTEMS_SUCCESSFUL);
-    rtems_test_assert(rtems_task_create(
+    sc = rtems_task_create(
       rtems_build_name('A', 'B', 'W', '0' + i), 9,
       2 * RTEMS_MINIMUM_STACK_SIZE, RTEMS_DEFAULT_MODES,
       RTEMS_DEFAULT_ATTRIBUTES, &worker_ids[i]
-    ) == RTEMS_SUCCESSFUL);
+    );
+    directive_failed(sc, "create lifecycle-test worker");
     rtems_test_assert(rtems_task_start(worker_ids[i], worker, i) == RTEMS_SUCCESSFUL);
     receive_event(READY(i));
     probe(i);
@@ -194,6 +196,10 @@ static rtems_task Init(rtems_task_argument arg)
 #define CONFIGURE_APPLICATION_NEEDS_SIMPLE_CONSOLE_DRIVER
 #define CONFIGURE_USE_IMFS_AS_BASE_FILESYSTEM
 #define CONFIGURE_MAXIMUM_TASKS 4
+/* confdefs budgets one minimum stack per task; these three tasks use two. */
+#define CONFIGURE_EXTRA_TASK_STACKS (3 * RTEMS_MINIMUM_STACK_SIZE)
+/* cgroup task membership nodes are allocated from the workspace at runtime. */
+#define CONFIGURE_MEMORY_OVERHEAD 16
 #define CONFIGURE_MAXIMUM_CGROUPS 2
 #define CONFIGURE_MAXIMUM_FILE_DESCRIPTORS 8
 #define CONFIGURE_INIT_TASK_PRIORITY 10

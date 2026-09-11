@@ -149,14 +149,18 @@ static void set_fault(bool enabled)
 static rtems_task Init(rtems_task_argument arg)
 {
   unsigned i;
+  NetContainer *root_net;
   struct ifnet *root_interface;
   OutputFunction root_output;
   (void) arg;
   abnormal_begin();
   rtems_test_assert(rtems_bsdnet_initialize_network() == 0);
+  root_net = rtems_container_get_root()->netContainer;
+  rtems_test_assert(root_net != NULL);
+  rtems_test_assert(root_net->group != NULL);
   root_interface = rtems_net_container_get_ifnet();
-  rtems_test_assert(root_interface != NULL);
-  root_output = root_interface->if_output;
+  /* With no configured host NIC, the root NET group may have no interface. */
+  root_output = root_interface != NULL ? root_interface->if_output : NULL;
   for (i = 0; i < 2; ++i) {
     create_endpoint(&endpoints[i]);
     exchange(&endpoints[i], 100 + i, false);
@@ -168,7 +172,11 @@ static rtems_task Init(rtems_task_argument arg)
   CHECK(failed_packets == 1);
   CHECK(endpoints[1].interface->if_output == endpoints[1].original_output);
   exchange(&endpoints[1], 201, false);
-  CHECK(root_interface->if_output == root_output);
+  CHECK(_Thread_Get_executing()->container->netContainer == root_net);
+  CHECK(rtems_net_container_get_ifnet() == root_interface);
+  if (root_interface != NULL) {
+    CHECK(root_interface->if_output == root_output);
+  }
   set_fault(false);
   /* Reuse the original sockets after recovery. */
   exchange(&endpoints[0], 300, false);

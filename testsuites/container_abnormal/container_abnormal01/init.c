@@ -112,6 +112,33 @@ static unsigned io_count(void)
   return count;
 }
 
+static void check_resources(const rtems_resource_snapshot *before)
+{
+  rtems_resource_snapshot after;
+
+  rtems_resource_snapshot_take(&after);
+  if (!rtems_resource_snapshot_equal(before, &after)) {
+    printf("[resources] heap used: %" PRIuPTR " -> %" PRIuPTR
+      ", free: %" PRIuPTR " -> %" PRIuPTR "\n",
+      (uintptr_t) before->heap_info.Used.total,
+      (uintptr_t) after.heap_info.Used.total,
+      (uintptr_t) before->heap_info.Free.total,
+      (uintptr_t) after.heap_info.Free.total);
+    printf("[resources] workspace used: %" PRIuPTR " -> %" PRIuPTR
+      ", free: %" PRIuPTR " -> %" PRIuPTR "\n",
+      (uintptr_t) before->workspace_info.Used.total,
+      (uintptr_t) after.workspace_info.Used.total,
+      (uintptr_t) before->workspace_info.Free.total,
+      (uintptr_t) after.workspace_info.Free.total);
+    printf("[resources] tasks: %" PRIu32 " -> %" PRIu32
+      ", semaphores: %" PRIu32 " -> %" PRIu32 ", files: %d -> %d\n",
+      before->rtems_api.active_tasks, after.rtems_api.active_tasks,
+      before->rtems_api.active_semaphores, after.rtems_api.active_semaphores,
+      before->open_files, after.open_files);
+  }
+  CHECK(rtems_resource_snapshot_equal(before, &after));
+}
+
 static void check_root(const Container *before)
 {
   Container *root = rtems_container_get_root();
@@ -203,18 +230,22 @@ static rtems_task Init(rtems_task_argument arg)
         CHECK(rtems_cgroup_get_task_count(created_cgroup_id, &count) == RTEMS_INVALID_ID);
       }
       check_root(&root_before);
-      CHECK(rtems_resource_snapshot_check(&resources));
+      check_resources(&resources);
 
+      puts("[recovery] creating container");
       rtems_test_assert(rtems_unified_container_create(
         &config, &container
       ) == RTEMS_SUCCESSFUL);
       rtems_test_assert(container != NULL);
+      puts("[recovery] entering container");
       rtems_test_assert(rtems_unified_container_enter(
         container, _Thread_Get_executing()
       ) == RTEMS_SUCCESSFUL);
+      puts("[recovery] leaving container");
       rtems_test_assert(rtems_unified_container_leave(
         container, _Thread_Get_executing()
       ) == RTEMS_SUCCESSFUL);
+      puts("[recovery] deleting container");
       rtems_test_assert(rtems_unified_container_delete(container) == RTEMS_SUCCESSFUL);
       check_root(&root_before);
       CHECK(io_count() == baseline_io);
