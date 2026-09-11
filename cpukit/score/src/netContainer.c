@@ -389,9 +389,6 @@ static int create_loopback_for_container(NetContainer *netContainer)
         return -1;
     }
 
-    /* Route installation can fail during early bring-up; keep container creation non-fatal. */
-    (void) install_container_loopback_route(netContainer);
-
     /* Configure IPv4 only if current thread/container context is usable; failures are non-fatal. */
     (void) configure_loopback_ipv4_in_container(netContainer);
 
@@ -490,38 +487,66 @@ void rtems_net_container_delete(NetContainer *netContainer)
     // 从链表中移除
     rtems_net_container_remove_from_list(netContainer);
 
-    // 清理ifnet里面的内容
+    /* Remove routes before releasing the interface address objects.  The
+     * loopback setup can install the route in either the root or the child
+     * routing table, depending on which container the creating thread was
+     * using at the time. */
     if (netContainer->group) {
-        // 
-        struct ifnet *ifp = netContainer->group->ifnet_p;
-        if (ifp) {
-            // 关闭接口
-            if (ifp->if_flags & IFF_UP) {
-                ifp->if_flags &= ~IFF_UP;
-            }
-            
-            ifp->if_addrlist = NULL;
-            
-            memset(&ifp->if_data, 0, sizeof(ifp->if_data));
-            
-            ifp->if_next = NULL;
-        }
-        netContainer->group->ifnet_p = NULL;
-        
-        // 清理ifnet_addrs
-        if (netContainer->group->ifnet_addrs) {
-            for (int i = 0; i < netContainer->group->if_indexlim; i++) {
-                if (netContainer->group->ifnet_addrs[i] != NULL) {
-                    netContainer->group->ifnet_addrs[i] = NULL;
-                }
-            }
+        net_group *group = netContainer->group;
+        Thread_Control *self = (Thread_Control *) _Thread_Get_executing();
+        NetContainer *saved_net = NULL;
+        struct in_ifaddr *ia;
+
+        if (self != NULL && self->container != NULL &&
+            self->container->netContainer != netContainer) {
+            /* The task iterator above has already moved all users to root.
+             * Switch only the executing task while removing child routes;
+             * using rtems_net_container_move_task here would drop the last
+             * reference and recursively delete the container. */
+            saved_net = self->container->netContainer;
+            self->container->netContainer = netContainer;
         }
 
-        netContainer->group->ifnet_config = NULL;
-        netContainer->group->if_index_counter = 0;
+        for (ia = group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
+            ia->ia_ifa.ifa_addr = (struct sockaddr *) &ia->ia_addr;
+            ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
+            ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
+            ia->ia_ifa.ifa_ifp = ia->ia_ifp;
+            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+        }
+
+        if (saved_net != NULL) {
+            self->container->netContainer = saved_net;
+        }
+
+        /* The route may have been installed in the root table before the
+         * creator entered the child.  Try that table as well. */
+        for (ia = group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
+            ia->ia_ifa.ifa_addr = (struct sockaddr *) &ia->ia_addr;
+            ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
+            ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
+            ia->ia_ifa.ifa_ifp = ia->ia_ifp;
+            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
+            ia->ia_flags &= ~IFA_ROUTE;
+        }
+
+        /* Release the dynamically allocated interface and address list only
+         * after all routing references have been dropped. */
+        struct ifnet *ifp = group->ifnet_p;
+        if (ifp != NULL) {
+            struct ifaddr *ifa = ifp->if_addrlist;
+            while (ifa != NULL) {
+                struct ifaddr *next = ifa->ifa_next;
+                free(ifa);
+                ifa = next;
+            }
+            free(ifp);
+        }
+        group->ifnet_p = NULL;
+        group->in_ifaddr = NULL;
 
         // 释放net_group
-        net_group_free(netContainer->group);
+        net_group_free(group);
         netContainer->group = NULL;
     }
 

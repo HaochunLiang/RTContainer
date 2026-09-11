@@ -48,9 +48,15 @@ rtems_status_code _CORE_cgroup_Suspend(
 {
   Per_CPU_Control *cpu_self;
 
-  if(the_cgroup->state != STATES_READY) {
-      the_cgroup->state |= wait_state;
-  } else {
+  if (the_cgroup == NULL) {
+    return RTEMS_INVALID_ADDRESS;
+  }
+
+  if ((the_cgroup->state & wait_state) != 0) {
+    return RTEMS_INCORRECT_STATE;
+  }
+
+  {
     the_cgroup->state |= wait_state;
 
     Chain_Node *node;
@@ -79,6 +85,13 @@ bool _CORE_cgroup_Initialize(
   CORE_cgroup_config  *config
 )
 {
+  /* Object allocation does not promise zero-filled control blocks. */
+  the_cgroup->state = STATES_READY;
+  the_cgroup->thread_count = 0;
+  the_cgroup->cpu_usage_total = 0;
+  the_cgroup->cpu_quota_available = 0;
+  the_cgroup->cpu_period_arrival_time = 0;
+
   _Chain_Initialize_empty(&the_cgroup->threads);
 
   the_cgroup->max_threads = 10;
@@ -103,6 +116,14 @@ rtems_status_code _CORE_cgroup_Resume(
 )
 {
   Per_CPU_Control *cpu_self;
+
+  if (the_cgroup == NULL) {
+    return RTEMS_INVALID_ADDRESS;
+  }
+
+  if ((the_cgroup->state & wait_state) == 0) {
+    return RTEMS_INCORRECT_STATE;
+  }
 
   if(the_cgroup->state && (wait_state & STATES_BLOCKED) == 0) {
       return RTEMS_INCORRECT_STATE;

@@ -9,6 +9,7 @@
 #include <rtems/score/containerfs.h>
 
 #include <stdbool.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -873,16 +874,40 @@ void rtems_containerfs_register_ipcctl(void)
 #endif
 
 #ifdef RTEMS_CGROUP
+static ssize_t cpuctl_error(int error)
+{
+  errno = error;
+  return -1;
+}
+
+static bool cpuctl_command(const char *cmd, const char *word, const char **args)
+{
+  size_t length = strlen(word);
+
+  if (strncmp(cmd, word, length) != 0 ||
+      (cmd[length] != '\0' && cmd[length] != ' ' && cmd[length] != '\t')) {
+    return false;
+  }
+
+  cmd += length;
+  while (*cmd == ' ' || *cmd == '\t') {
+    ++cmd;
+  }
+  *args = cmd;
+  return true;
+}
+
 static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count)
 {
   char cmd[256];
+  const char *args;
 
   (void) iop;
   if (containerfs_copy_command(cmd, sizeof(cmd), buffer, count) == 0) {
-    return (ssize_t) count;
+    return cpuctl_error(EINVAL);
   }
 
-  if (strncmp(cmd, "create", 6) == 0) {
+  if (cpuctl_command(cmd, "create", &args)) {
     uint32_t quota = 100;
     uint32_t period = 1000;
     uint32_t shares = 1;
@@ -891,7 +916,9 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
     rtems_status_code sc;
     rtems_name name;
 
-    (void) sscanf(cmd + 6, "%u %u %u", &quota, &period, &shares);
+    if (*args != '\0' && sscanf(args, "%u %u %u", &quota, &period, &shares) != 3) {
+      return cpuctl_error(EINVAL);
+    }
     name = rtems_build_name('C', 'P', 'U', '0' + (containerfs_cgroup_name_index++ % 10));
     config.cpu_shares = shares;
     config.cpu_quota = quota;
@@ -904,13 +931,14 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
       printf("[cpuctl] created: id=%" PRIu32 ", quota=%u, period=%u, shares=%u\n", id, quota, period, shares);
     } else {
       printf("[cpuctl] create failed: sc=%d\n", sc);
+      return cpuctl_error(ENOMEM);
     }
-  } else if (strncmp(cmd, "set", 3) == 0) {
+  } else if (cpuctl_command(cmd, "set", &args)) {
     uint32_t id;
     uint32_t quota;
     uint32_t period;
 
-    if (sscanf(cmd + 3, "%" SCNu32 " %u %u", &id, &quota, &period) == 3) {
+    if (sscanf(args, "%" SCNu32 " %u %u", &id, &quota, &period) == 3) {
       ISR_lock_Context lock_context;
       Cgroup_Control *cg;
 
@@ -921,26 +949,30 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
         printf("[cpuctl] updated: id=%" PRIu32 ", quota=%u, period=%u\n", id, quota, period);
       } else {
         printf("[cpuctl] set: id=%" PRIu32 " not found\n", id);
+        return cpuctl_error(ESRCH);
       }
     } else {
       printf("[cpuctl] usage: set <id> <quota> <period>\n");
+      return cpuctl_error(EINVAL);
     }
-  } else if (strncmp(cmd, "delete", 6) == 0) {
+  } else if (cpuctl_command(cmd, "delete", &args)) {
     uint32_t id;
-    if (sscanf(cmd + 6, "%" SCNu32, &id) == 1) {
+    if (sscanf(args, "%" SCNu32, &id) == 1) {
       rtems_status_code sc = rtems_cgroup_delete(id);
       if (sc == RTEMS_SUCCESSFUL) {
         containerfs_cgroup_track_remove(id);
         printf("[cpuctl] deleted: id=%" PRIu32 "\n", id);
       } else {
         printf("[cpuctl] delete failed: id=%" PRIu32 ", sc=%d\n", id, sc);
+        return cpuctl_error(ESRCH);
       }
     } else {
       printf("[cpuctl] usage: delete <id>\n");
+      return cpuctl_error(EINVAL);
     }
-  } else if (strncmp(cmd, "pause", 5) == 0) {
+  } else if (cpuctl_command(cmd, "pause", &args)) {
     uint32_t id;
-    if (sscanf(cmd + 5, "%" SCNu32, &id) == 1) {
+    if (sscanf(args, "%" SCNu32, &id) == 1) {
       ISR_lock_Context lock_context;
       Cgroup_Control *cg;
 
@@ -952,15 +984,20 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
           STATES_WAITING_FOR_CGROUP_CPU_QUOTA
         );
         printf("[cpuctl] paused: id=%" PRIu32 ", sc=%d\n", id, sc);
+        if (sc != RTEMS_SUCCESSFUL) {
+          return cpuctl_error(EINVAL);
+        }
       } else {
         printf("[cpuctl] pause: id=%" PRIu32 " not found\n", id);
+        return cpuctl_error(ESRCH);
       }
     } else {
       printf("[cpuctl] usage: pause <id>\n");
+      return cpuctl_error(EINVAL);
     }
-  } else if (strncmp(cmd, "resume", 6) == 0) {
+  } else if (cpuctl_command(cmd, "resume", &args)) {
     uint32_t id;
-    if (sscanf(cmd + 6, "%" SCNu32, &id) == 1) {
+    if (sscanf(args, "%" SCNu32, &id) == 1) {
       ISR_lock_Context lock_context;
       Cgroup_Control *cg;
 
@@ -972,11 +1009,16 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
           STATES_WAITING_FOR_CGROUP_CPU_QUOTA
         );
         printf("[cpuctl] resumed: id=%" PRIu32 ", sc=%d\n", id, sc);
+        if (sc != RTEMS_SUCCESSFUL) {
+          return cpuctl_error(EINVAL);
+        }
       } else {
         printf("[cpuctl] resume: id=%" PRIu32 " not found\n", id);
+        return cpuctl_error(ESRCH);
       }
     } else {
       printf("[cpuctl] usage: resume <id>\n");
+      return cpuctl_error(EINVAL);
     }
   } else if (strcmp(cmd, "list") == 0) {
     size_t i;
@@ -1001,6 +1043,7 @@ static ssize_t cpuctl_write(rtems_libio_t *iop, const void *buffer, size_t count
     }
   } else {
     printf("[cpuctl] supported: create [quota period shares] | set <id> <quota> <period> | delete <id> | pause <id> | resume <id> | list\n");
+    return cpuctl_error(EINVAL);
   }
 
   return (ssize_t) count;
