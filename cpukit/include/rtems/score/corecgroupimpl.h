@@ -62,6 +62,11 @@ rtems_status_code _CORE_cgroup_Resume(
   States_Control      wait_state
 );
 
+/**
+ * @brief Remove cgroup watchdogs before releasing its control block.
+ */
+void _CORE_cgroup_Destroy(CORE_cgroup_Control *the_cgroup);
+
 
 static void cpu_suspend_routine(
   Watchdog_Control *the_watchdog

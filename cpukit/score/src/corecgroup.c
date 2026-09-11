@@ -25,6 +25,22 @@
 #include <rtems/score/thread.h>
 #include <rtems/score/threadimpl.h>
 
+void _CORE_cgroup_Destroy(CORE_cgroup_Control *the_cgroup)
+{
+  if (the_cgroup == NULL) {
+    return;
+  }
+
+  /* The watchdog callbacks retain the cgroup pointer.  They must be removed
+   * before the object is returned to the cgroup object pool. */
+  if (_Watchdog_Is_scheduled(&the_cgroup->cpu_suspend_watchdog.watchdog)) {
+    cancel_cpu_suspend_watchdog(the_cgroup);
+  }
+  if (_Watchdog_Is_scheduled(&the_cgroup->cpu_resume_watchdog.watchdog)) {
+    cancel_cpu_resume_watchdog(the_cgroup);
+  }
+}
+
 rtems_status_code _CORE_cgroup_Suspend(
   CORE_cgroup_Control *the_cgroup,
   States_Control    wait_state

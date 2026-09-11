@@ -135,6 +135,21 @@ static void check_resources(const rtems_resource_snapshot *before)
       before->rtems_api.active_tasks, after.rtems_api.active_tasks,
       before->rtems_api.active_semaphores, after.rtems_api.active_semaphores,
       before->open_files, after.open_files);
+    printf("[resources] rtems objects: barriers %" PRIu32 "/%" PRIu32
+      ", extensions %" PRIu32 "/%" PRIu32 ", queues %" PRIu32 "/%" PRIu32
+      ", timers %" PRIu32 "/%" PRIu32 "\n",
+      before->rtems_api.active_barriers, after.rtems_api.active_barriers,
+      before->rtems_api.active_extensions, after.rtems_api.active_extensions,
+      before->rtems_api.active_message_queues, after.rtems_api.active_message_queues,
+      before->rtems_api.active_timers, after.rtems_api.active_timers);
+    printf("[resources] posix objects: queues %" PRIu32 "/%" PRIu32
+      ", semaphores %" PRIu32 "/%" PRIu32 ", threads %" PRIu32 "/%" PRIu32
+      ", keys %" PRIu32 "/%" PRIu32 ", key-values %" PRIu32 "/%" PRIu32 "\n",
+      before->posix_api.active_message_queues, after.posix_api.active_message_queues,
+      before->posix_api.active_semaphores, after.posix_api.active_semaphores,
+      before->posix_api.active_threads, after.posix_api.active_threads,
+      before->active_posix_keys, after.active_posix_keys,
+      before->active_posix_key_value_pairs, after.active_posix_key_value_pairs);
   }
   CHECK(rtems_resource_snapshot_equal(before, &after));
 }

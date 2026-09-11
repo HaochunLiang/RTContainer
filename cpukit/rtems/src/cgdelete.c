@@ -37,6 +37,7 @@ rtems_status_code rtems_cgroup_delete(
     return RTEMS_INVALID_ID;
   }
 
+  _CORE_cgroup_Destroy( &the_cgroup->cgroup );
   _Objects_Close( &_Cgroup_Information, &the_cgroup->Object );
   _Cgroup_Free( the_cgroup );
   _Objects_Allocator_unlock();
