@@ -197,11 +197,10 @@ static void cleanup_container_mounts(MntContainer *mntContainer)
             mt_entry->mt_fs_root = NULL;
         }
         
-        /*
-         * target/type may point into the same allocation as mt_entry
-         * (see alloc_mount_table_entry()), so freeing them separately can
-         * trigger INVALID_HEAP_FREE. Release the mount entry as one object.
-         */
+        /* clone_mount_entry() duplicates target and type with strdup().
+         * Release those strings before releasing the mount entry itself. */
+        free((void *) mt_entry->target);
+        free((void *) mt_entry->type);
         mt_entry->target = NULL;
         mt_entry->type = NULL;
         free(mt_entry);
