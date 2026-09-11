@@ -32,6 +32,11 @@
 extern struct ifnet *ifnet;
 extern struct ifaddr **ifnet_addrs;
 
+/* Do not include the BSD internal header here: it replaces malloc/free with
+ * the kernel three/two-argument variants. */
+extern void rtems_bsdnet_semaphore_obtain(void);
+extern void rtems_bsdnet_semaphore_release(void);
+
 static int g_netContainerId = 1;
 static int g_currentNetContainerNum = 0;
 
@@ -44,7 +49,10 @@ static void *net_hashinit_local(int count, u_long *hashmask)
     }
 
     *hashmask = (u_long)(n - 1);
-    return malloc((size_t)n * sizeof(void *));
+    /* Each bucket is a BSD LIST head.  Recycled malloc() storage may contain
+     * stale pointers, causing the first PCB insertion to write through an
+     * arbitrary previous head.  Match hashinit() by starting every list empty. */
+    return calloc((size_t)n, sizeof(struct inpcbhead));
 }
 
 static void net_hashfree_local(void *p)
@@ -336,6 +344,8 @@ static void net_group_free(net_group *group)
     if (group == NULL) {
         return;
     }
+
+    rtems_bsdnet_destroy_loop_for_container(group);
     
 #ifdef RTEMSCFG_Carousel_CONTAINER
     /* 清理Carousel调度器 */
@@ -377,7 +387,6 @@ static void net_group_free(net_group *group)
 // 为容器创建独立的 loopback 接口
 static int create_loopback_for_container(NetContainer *netContainer)
 {
-    extern int rtems_bsdnet_initialize_loop_for_container(void *net_group_ptr);
     int rc;
 
     if (!netContainer || !netContainer->group) {
@@ -441,14 +450,18 @@ NetContainer *rtems_net_container_create(void)
 
     // printf("创建网络隔离容器: ID=%d\n", netContainer->containerID);
 
-    // 为容器创建独立的 loopback 接口
+    /* BSD splnet() does not lock in RTEMS.  Protect interface and routing
+     * updates explicitly, including the direct rtinit() calls. */
+    rtems_bsdnet_semaphore_obtain();
     if (create_loopback_for_container(netContainer) != 0) {
         printf("错误: 容器%d loopback 接口创建失败\n", netContainer->containerID);
+        CONTAINER_LOG_ERROR("Failed to create loopback for NET container: ID=%d", netContainer->containerID);
         net_group_free(netContainer->group);
         free(netContainer);
-        CONTAINER_LOG_ERROR("Failed to create loopback for NET container: ID=%d", netContainer->containerID);
+        rtems_bsdnet_semaphore_release();
         return NULL;
     }
+    rtems_bsdnet_semaphore_release();
 
     g_currentNetContainerNum++;
     rtems_net_container_add_to_list(netContainer);
@@ -489,6 +502,8 @@ void rtems_net_container_delete(NetContainer *netContainer)
     NetContainer *root = container->netContainer;
     if (netContainer == root)
         return;
+
+    rtems_bsdnet_semaphore_obtain();
 
     // printf("删除子net容器: ID=%d, rc=%d\n", netContainer->containerID, netContainer->rc);
 
@@ -577,13 +592,8 @@ void rtems_net_container_delete(NetContainer *netContainer)
             self->container->netContainer = saved_net;
         }
 
-        /* The BSD networking code owns the loopback interface/address
-         * allocations.  Keep those objects alive after route teardown;
-         * freeing an embedded ifaddr here can race stale BSD references. */
-        group->ifnet_p = NULL;
-        group->in_ifaddr = NULL;
-
-        // 释放net_group
+        /* net_group_free() reclaims an unused loopback and its empty route
+         * tables before freeing the group metadata. */
         net_group_free(group);
         netContainer->group = NULL;
     }
@@ -593,6 +603,7 @@ void rtems_net_container_delete(NetContainer *netContainer)
     
     // 释放容器本身
     free(netContainer);
+    rtems_bsdnet_semaphore_release();
     CONTAINER_LOG_INFO("NET container deleted successfully");
 }
 
@@ -667,17 +678,19 @@ void rtems_net_container_move_task(NetContainer *srcContainer, NetContainer *des
     if (thread->container &&
         (thread->container->netContainer == srcContainer))
     {
+        int src_id = srcContainer->containerID;
+
         thread->container->netContainer = destContainer;
+        destContainer->rc++;
         srcContainer->rc--;
         if (srcContainer->rc <= 0 && srcContainer->containerID != 1)
         {
             rtems_net_container_delete(srcContainer);
         }
-        destContainer->rc++;
         CONTAINER_LOG_INFO(
           "Task moved successfully: thread_id=%" PRIu32 " from net=%d to net=%d",
           thread->Object.id,
-          srcContainer->containerID,
+          src_id,
           destContainer->containerID
         );
     }

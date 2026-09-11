@@ -6,6 +6,7 @@ set -u
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd) || exit 1
 exe_dir=${1:-"$repo_dir/build-container-abnormal/aarch64/a53_lp64_qemu/testsuites/container_abnormal"}
 qemu_bin=${QEMU:-qemu-system-aarch64}
+addr2line_bin=${ADDR2LINE:-/opt/rtems6/bin/aarch64-rtems6-addr2line}
 log_dir="$exe_dir/logs"
 
 for tool in "$qemu_bin" timeout; do
@@ -37,11 +38,30 @@ for number in 01 02 03 04 05; do
   # Some BSPs stay halted after TEST_END instead of exiting QEMU (status 124).
   if { test "$qemu_status" -eq 0 || test "$qemu_status" -eq 124; } &&
      grep -Fq "*** END OF TEST $test_name ***" "$log_file" &&
-     ! grep -Fq '[FAIL]' "$log_file"; then
+     ! grep -Fq '[FAIL]' "$log_file" &&
+     ! grep -Fq '*** FATAL ***' "$log_file"; then
     echo "PASS: $test_name"
   else
     echo "FAIL: $test_name (QEMU/timeout status: $qemu_status)"
     failures=$((failures + 1))
+    # Decode with the exact image which just ran, before any rebuild changes
+    # its addresses.  Keep this separate from the original QEMU log.
+    if command -v "$addr2line_bin" >/dev/null 2>&1; then
+      symbols_file="$log_dir/container_abnormal$number.addr2line.log"
+      awk '{
+        for (i = 1; i + 2 <= NF; ++i)
+          if (($i == "PC" || $i == "LR") && $(i + 1) == "=" &&
+              $(i + 2) ~ /^0x[[:xdigit:]]+$/)
+            print $(i + 2)
+      }' "$log_file" | while IFS= read -r address; do
+        "$addr2line_bin" -a -f -C \
+          -e "$exe_dir/container_abnormal$number.exe" "$address"
+      done >"$symbols_file" 2>&1
+      if test -s "$symbols_file"; then
+        echo "PC/LR source locations:"
+        cat "$symbols_file"
+      fi
+    fi
   fi
 done
 echo "Failed tests: $failures / 5. Logs: $log_dir"

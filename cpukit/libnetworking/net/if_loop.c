@@ -67,6 +67,7 @@
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/in_var.h>
+#include <netinet/in_pcb.h>
 #include <netinet/ip.h>
 #endif
 
@@ -227,6 +228,98 @@ rtems_bsdnet_initialize_loop_for_container(void *net_group_ptr)
 	bpfattach(ifp, DLT_NULL, sizeof(u_int));
 #endif
 	return 0;
+}
+
+static int
+container_route_present(struct radix_node *rn, void *arg)
+{
+	(void)rn;
+	(void)arg;
+	return 1;
+}
+
+/* Reclaim an unused container loopback after its routes have been removed.
+ * Other drivers and interfaces with outstanding references need their own
+ * detach path.  In particular, do not free an ifaddr still used by a socket.
+ * The caller holds the BSD networking semaphore throughout teardown. */
+void
+rtems_bsdnet_destroy_loop_for_container(void *net_group_ptr)
+{
+	net_group *group = net_group_ptr;
+	struct ifnet *ifp = group->ifnet_p;
+	struct ifaddr *ifa;
+	struct in_ifaddr *ia;
+	size_t i;
+
+	if (group->veth_sc != NULL ||
+	    (group->udp_pcblist != NULL && !LIST_EMPTY(group->udp_pcblist)) ||
+	    (group->tcp_pcblist != NULL && !LIST_EMPTY(group->tcp_pcblist)))
+		return;
+
+	if (ifp != NULL && (ifp->if_next != NULL ||
+	    ifp->if_output != looutput || ifp->if_ioctl != loioctl ||
+	    ifp->if_bpf != NULL || ifp->if_snd.ifq_head != NULL ||
+	    ifp->if_ipackets != 0 || ifp->if_opackets != 0))
+		return;
+
+	for (i = 0; i < sizeof(group->rt_tables) / sizeof(group->rt_tables[0]); ++i) {
+		struct radix_node_head *rnh = group->rt_tables[i];
+
+		if (rnh != NULL && rnh->rnh_walktree(rnh,
+		    container_route_present, NULL) != 0)
+			return;
+	}
+
+	/* A multicast membership holds one ifaddr reference.  Any additional
+	 * reference belongs to a user outside the interface address list. */
+	for (ifa = ifp != NULL ? ifp->if_addrlist : NULL;
+	     ifa != NULL; ifa = ifa->ifa_next) {
+		u_int references = 0;
+
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			struct in_multi *inm;
+
+			ia = (struct in_ifaddr *)ifa;
+			LIST_FOREACH(inm, &ia->ia_multiaddrs, inm_entry) {
+				if (inm->inm_refcount != 1)
+					return;
+				++references;
+			}
+		} else if (ifa->ifa_addr->sa_family != AF_LINK) {
+			return;
+		}
+		if (ifa->ifa_refcnt != references)
+			return;
+	}
+
+	for (ia = group->in_ifaddr; ia != NULL; ia = ia->ia_next) {
+		while (!LIST_EMPTY(&ia->ia_multiaddrs))
+			in_delmulti(LIST_FIRST(&ia->ia_multiaddrs));
+	}
+
+	group->in_ifaddr = NULL;
+	group->ifnet_p = NULL;
+	if (ifp != NULL) {
+		while ((ifa = ifp->if_addrlist) != NULL) {
+			ifp->if_addrlist = ifa->ifa_next;
+			/* in_ifaddr embeds ifaddr: free it once through this list. */
+			IFAFREE(ifa);
+		}
+		free(ifp, M_IFADDR);
+	}
+	if (group->ifnet_addrs != NULL)
+		bzero(group->ifnet_addrs,
+		    group->if_indexlim * sizeof(*group->ifnet_addrs));
+
+	/* Child heads have embedded radix root nodes.  in_inithead() starts
+	 * its timer only for the global table, so these empty child heads have
+	 * no timer to cancel.  The shared radix masks/zeroes/ones stay alive. */
+	for (i = 0; i < sizeof(group->rt_tables) / sizeof(group->rt_tables[0]); ++i) {
+		if (group->rt_tables[i] != NULL) {
+			free(group->rt_tables[i], M_RTABLE);
+			group->rt_tables[i] = NULL;
+		}
+	}
 }
 #endif
 

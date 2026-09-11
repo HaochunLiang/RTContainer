@@ -11,6 +11,7 @@
 #include <rtems/score/container.h>
 #include <rtems/score/threadimpl.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 const char rtems_test_name[] = "CONTAINER ABNORMAL 01";
@@ -125,6 +126,30 @@ static uint32_t flags_for_failure(FailureStage stage)
   return flags;
 }
 
+static void check_heap(const char *phase)
+{
+  if (!malloc_walk(0, false)) {
+    printf("[FAIL] heap corruption after %s\n", phase);
+    rtems_test_assert(false);
+  }
+}
+
+static void check_network_sockets(void)
+{
+  static const int types[] = { SOCK_DGRAM, SOCK_STREAM };
+  size_t i;
+
+  /* Both protocols must be usable after repeated NET allocation/rollback.
+   * Opening a socket inserts its PCB into the container's hash table. */
+  for (i = 0; i < RTEMS_ARRAY_SIZE(types); ++i) {
+    int fd = socket(AF_INET, types[i], 0);
+
+    rtems_test_assert(fd >= 0);
+    rtems_test_assert(close(fd) == 0);
+  }
+  check_heap("UDP/TCP socket creation and close");
+}
+
 static void check_resources(const rtems_resource_snapshot *before)
 {
   rtems_resource_snapshot after;
@@ -164,9 +189,8 @@ static void check_resources(const rtems_resource_snapshot *before)
       before->active_posix_keys, after.active_posix_keys,
       before->active_posix_key_value_pairs, after.active_posix_key_value_pairs);
   }
-  /* The RTEMS 6 snapshot implementation stores object counts in an array
-   * whose order does not match rtems_resource_snapshot.  Compare the stable
-   * heap/workspace/file portions here and report object counts separately. */
+  /* Check allocated memory and files for both rollback and recovery.
+   * Per-class object counts are reported separately for diagnosis. */
   CHECK(before->heap_info.Used.total == after.heap_info.Used.total);
   CHECK(before->heap_info.Free.total == after.heap_info.Free.total);
   CHECK(before->workspace_info.Used.total == after.workspace_info.Used.total);
@@ -237,11 +261,20 @@ static rtems_task Init(rtems_task_argument arg)
   rtems_unified_container_config_initialize(&config);
   config.flags = RTEMS_UNIFIED_CONTAINER_ALL;
 
-  /* Warm up lazy allocations (network routes, IO manager, stdio) once. */
+  /* Warm up lazy allocations, including the task's own namespace context,
+   * before checking both rollback and complete recovery for leaks. */
   rtems_test_assert(rtems_unified_container_create(
     &config, &container
   ) == RTEMS_SUCCESSFUL);
+  rtems_test_assert(rtems_unified_container_enter(
+    container, _Thread_Get_executing()
+  ) == RTEMS_SUCCESSFUL);
+  check_network_sockets();
+  rtems_test_assert(rtems_unified_container_leave(
+    container, _Thread_Get_executing()
+  ) == RTEMS_SUCCESSFUL);
   rtems_test_assert(rtems_unified_container_delete(container) == RTEMS_SUCCESSFUL);
+  check_heap("warm-up cleanup");
   root_before = *rtems_container_get_root();
   check_root(&root_before);
   baseline_io = io_count();
@@ -258,6 +291,7 @@ static rtems_task Init(rtems_task_argument arg)
       container = (RtemsContainer *) &config;
       sc = rtems_unified_container_create(&config, &container);
       failure_stage = FAIL_NONE;
+      check_heap("injected creation failure and rollback");
       CHECK(injection_hits == 1);
       CHECK(sc == (stage == FAIL_CGROUP ? RTEMS_TOO_MANY : RTEMS_NO_MEMORY));
       CHECK(container == NULL);
@@ -269,22 +303,29 @@ static rtems_task Init(rtems_task_argument arg)
       check_resources(&resources);
 
       puts("[recovery] creating container");
+      rtems_resource_snapshot_take(&resources);
       rtems_test_assert(rtems_unified_container_create(
         &config, &container
       ) == RTEMS_SUCCESSFUL);
+      check_heap("recovery creation");
       rtems_test_assert(container != NULL);
       puts("[recovery] entering container");
       rtems_test_assert(rtems_unified_container_enter(
         container, _Thread_Get_executing()
       ) == RTEMS_SUCCESSFUL);
+      if ((config.flags & RTEMS_UNIFIED_CONTAINER_NET) != 0) {
+        check_network_sockets();
+      }
       puts("[recovery] leaving container");
       rtems_test_assert(rtems_unified_container_leave(
         container, _Thread_Get_executing()
       ) == RTEMS_SUCCESSFUL);
       puts("[recovery] deleting container");
       rtems_test_assert(rtems_unified_container_delete(container) == RTEMS_SUCCESSFUL);
+      check_heap("recovery cleanup");
       check_root(&root_before);
       CHECK(io_count() == baseline_io);
+      check_resources(&resources);
       puts("[recovery] create, enter, leave and delete completed");
     }
   }

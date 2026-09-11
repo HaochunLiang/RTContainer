@@ -99,6 +99,10 @@ int rtems_net_container_initialize_root(NetContainer **netContainer);
 // 创建子net容器
 NetContainer *rtems_net_container_create(void);
 
+/* Internal BSD helpers; caller holds the networking semaphore. */
+int rtems_bsdnet_initialize_loop_for_container(void *net_group_ptr);
+void rtems_bsdnet_destroy_loop_for_container(void *net_group_ptr);
+
 // 删除子net容器
 void rtems_net_container_delete(NetContainer *netContainer);
 
