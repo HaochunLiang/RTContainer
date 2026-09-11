@@ -421,20 +421,24 @@ NetContainer *rtems_net_container_create(void)
 
     // printf("创建网络隔离容器: ID=%d\n", netContainer->containerID);
 
-    // 为容器创建独立的 loopback 接口
-    if (create_loopback_for_container(netContainer) != 0) {
-        printf("错误: 容器%d loopback 接口创建失败\n", netContainer->containerID);
-        net_group_free(netContainer->group);
-        free(netContainer);
-        CONTAINER_LOG_ERROR("Failed to create loopback for NET container: ID=%d", netContainer->containerID);
-        return NULL;
-    }
-
     g_currentNetContainerNum++;
     rtems_net_container_add_to_list(netContainer);
     CONTAINER_LOG_INFO("New NET container created successfully: ID=%d", netContainer->containerID);
 
     return netContainer;
+}
+
+int rtems_net_container_initialize(NetContainer *netContainer)
+{
+    if (netContainer == NULL || netContainer->group == NULL) {
+        return -1;
+    }
+
+    if (netContainer->group->ifnet_p != NULL) {
+        return 0;
+    }
+
+    return create_loopback_for_container(netContainer);
 }
 
 static bool switch_to_root_net(Thread_Control *thread, void *arg)
@@ -493,7 +497,6 @@ void rtems_net_container_delete(NetContainer *netContainer)
         Thread_Control *self = (Thread_Control *) _Thread_Get_executing();
         NetContainer *saved_net = NULL;
         struct in_ifaddr *ia;
-        bool try_root_route;
 
         if (self != NULL && self->container != NULL &&
             self->container->netContainer != netContainer) {
@@ -510,24 +513,7 @@ void rtems_net_container_delete(NetContainer *netContainer)
             ia->ia_ifa.ifa_dstaddr = (struct sockaddr *) &ia->ia_addr;
             ia->ia_ifa.ifa_netmask = (struct sockaddr *) &ia->ia_sockmask;
             ia->ia_ifa.ifa_ifp = ia->ia_ifp;
-            try_root_route = rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST) != 0 ||
-                ia->ia_ifa.ifa_refcnt != 0;
-
-            if (saved_net != NULL) {
-                self->container->netContainer = saved_net;
-            }
-
-            /* A few older network setup paths installed the route in the
-             * root table before switching to the child.  Retry there only
-             * when the child route was absent or another reference remains.
-             */
-            if (try_root_route) {
-                (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
-            }
-
-            if (saved_net != NULL) {
-                self->container->netContainer = netContainer;
-            }
+            (void) rtinit(&ia->ia_ifa, RTM_DELETE, RTF_HOST);
         }
 
         if (saved_net != NULL) {
