@@ -172,9 +172,85 @@ void rtems_pid_container_remove_task(PidContainer *container, Thread_Control *th
 // 将线程从一个PID容器中移到另一个PID容器中
 void rtems_pid_container_move_task(PidContainer *srcContainer, PidContainer *destContainer, Thread_Control *thread)
 {
-    if (!srcContainer || !destContainer || !thread) return;
-    rtems_pid_container_remove_task(srcContainer, thread);
-    rtems_pid_container_add_task(destContainer, thread);
+    ThreadNode *node;
+    ThreadNode *destNode;
+    VidNode *recycled;
+    VidNode **freeSlot;
+    INT32 srcVid = 0;
+    INT32 destVid;
+
+    if (!srcContainer || !destContainer || !thread ||
+        srcContainer == destContainer || srcContainer->rc <= 0) return;
+
+    for (node = srcContainer->threadListHead; node; node = node->next) {
+        if (node->thread == thread) break;
+    }
+    if (!node) return;
+
+    for (INT32 i = 1; i < RTEMS_MAX_PROCESS_LIMIT; ++i) {
+        if (srcContainer->pidArray[i].id == thread->Object.id &&
+            srcContainer->pidArray[i].vid != 0) {
+            srcVid = i;
+            break;
+        }
+    }
+    if (srcVid == 0) return;
+
+    for (destNode = destContainer->threadListHead; destNode;
+         destNode = destNode->next) {
+        if (destNode->thread == thread) return;
+    }
+
+    /* Prepare both VID changes before modifying either membership.  Reuse
+     * the destination's free-VID node to record the vacated source VID. */
+    recycled = destContainer->freeVidListHead;
+    if (recycled) {
+        destVid = recycled->vid;
+        destContainer->freeVidListHead = recycled->next;
+    } else {
+        if (destContainer->pidCount >= RTEMS_MAX_PROCESS_LIMIT - 1) return;
+        recycled = (VidNode *)malloc(sizeof(*recycled));
+        if (!recycled) return;
+        destVid = ++destContainer->pidCount;
+    }
+
+    recycled->vid = srcVid;
+    freeSlot = &srcContainer->freeVidListHead;
+    while (*freeSlot && (*freeSlot)->vid < srcVid) {
+        freeSlot = &(*freeSlot)->next;
+    }
+    recycled->next = *freeSlot;
+    *freeSlot = recycled;
+
+    srcContainer->pidArray[srcVid].vid = 0;
+    srcContainer->pidArray[srcVid].id = 0;
+    destContainer->pidArray[destVid].vid = destVid;
+    destContainer->pidArray[destVid].id = thread->Object.id;
+
+    /* Move the existing node instead of freeing it and allocating another.
+     * A task's bookkeeping then retains the same heap block across enter /
+     * leave, independent of allocator rounding and free-block placement. */
+    if (node->prev) {
+        node->prev->next = node->next;
+    } else {
+        srcContainer->threadListHead = node->next;
+    }
+    if (node->next) node->next->prev = node->prev;
+
+    node->prev = NULL;
+    node->next = destContainer->threadListHead;
+    if (node->next) node->next->prev = node;
+    destContainer->threadListHead = node;
+
+    ++destContainer->rc;
+    --srcContainer->rc;
+    if (thread->container != NULL &&
+        thread->container->pidContainer == srcContainer) {
+        thread->container->pidContainer = destContainer;
+    }
+    if (srcContainer->rc == 0) {
+        rtems_pid_container_delete(srcContainer);
+    }
 }
 
 
