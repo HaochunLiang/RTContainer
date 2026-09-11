@@ -1,0 +1,27 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: test-program
+cflags: []
+copyrights:
+- Copyright (C) 2026 RTEMS Container Project
+cppflags: []
+cxxflags: []
+enabled-by: true
+features: c cprogram
+includes:
+- cpukit/libnetworking
+ldflags:
+- -Wl,--wrap=rtems_pid_container_create
+- -Wl,--wrap=rtems_uts_container_create
+- -Wl,--wrap=rtems_mnt_container_create_with_inheritance
+- -Wl,--wrap=rtems_net_container_create
+- -Wl,--wrap=rtems_ipc_container_create
+- -Wl,--wrap=rtems_cgroup_create
+- -Wl,--wrap=rtems_io_cgroup_create
+links: []
+source:
+- testsuites/container_abnormal/container_abnormal01/init.c
+stlib: []
+target: testsuites/container_abnormal/container_abnormal01.exe
+type: build
+use-after: []
+use-before: []

@@ -1,0 +1,42 @@
+SPDX-License-Identifier: CC-BY-SA-4.0 OR BSD-2-Clause
+build-type: group
+cflags: []
+copyrights:
+- Copyright (C) 2026 RTEMS Container Project
+cppflags: []
+cxxflags: []
+enabled-by:
+  and:
+  - BUILD_CONTAINERABNORMALTESTS
+  - RTEMSCFG_CONTAINER
+  - RTEMSCFG_PID_CONTAINER
+  - RTEMSCFG_IPC_CONTAINER
+  - RTEMSCFG_MNT_CONTAINER
+  - RTEMSCFG_NET_CONTAINER
+  - RTEMSCFG_UTS_CONTAINER
+  - RTEMS_CGROUP
+  - RTEMSCFG_IO_CGROUP
+  - RTEMSCFG_CONTAINER_FILE
+  - RTEMSCFG_CONTAINER_LOG
+includes:
+- testsuites/support/include
+install: []
+ldflags:
+- -Wl,--wrap=printf
+- -Wl,--wrap=puts
+- -Wl,--wrap=putchar
+links:
+- role: build-dependency
+  uid: container_abnormal01
+- role: build-dependency
+  uid: container_abnormal02
+- role: build-dependency
+  uid: container_abnormal03
+- role: build-dependency
+  uid: container_abnormal04
+- role: build-dependency
+  uid: container_abnormal05
+type: build
+use-after:
+- rtemstest
+use-before: []

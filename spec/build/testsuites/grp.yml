@@ -77,9 +77,13 @@ links:
 - role: build-dependency
   uid: optcontainertests
 - role: build-dependency
+  uid: optcontainerabnormaltests
+- role: build-dependency
   uid: cgtests/grp
 - role: build-dependency
   uid: container/grp
+- role: build-dependency
+  uid: container_abnormal/grp
 - role: build-dependency
   uid: testopts
 type: build
