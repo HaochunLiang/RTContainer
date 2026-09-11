@@ -228,15 +228,29 @@ void rtems_pid_container_delete(PidContainer *pidContainer)
     // 防止递归多次删除
     pidContainer->rc = -1;  
 
-    // 迁移所有线程到根容器
+    // 迁移所有线程到根容器，并直接释放线程节点。
+    // rc 已设为 -1，remove_task() 会提前返回，不能用它清理这些节点。
     ThreadNode *node = pidContainer->threadListHead;
+    pidContainer->threadListHead = NULL;
     while (node) {
         ThreadNode *next = node->next;
         Thread_Control *thread = (Thread_Control *)node->thread;
-        // 先从当前容器移除，再加到根容器
-        rtems_pid_container_remove_task(pidContainer, thread);
         rtems_pid_container_add_task(root, thread);
+        if (thread->container != NULL &&
+            thread->container->pidContainer == pidContainer) {
+            thread->container->pidContainer = root;
+        }
+        free(node);
         node = next;
+    }
+
+    // 线程离开时分配的空闲 VID 节点也由 PID 容器持有。
+    VidNode *vidNode = pidContainer->freeVidListHead;
+    pidContainer->freeVidListHead = NULL;
+    while (vidNode) {
+        VidNode *next = vidNode->next;
+        free(vidNode);
+        vidNode = next;
     }
 
     // 释放自身内存

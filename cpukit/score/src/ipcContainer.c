@@ -343,7 +343,12 @@ static void _IPC_Container_Initialize_RTEMS_Message_Queue_Info(
         _Chain_Append_unprotected(&info->Inactive, &obj->Node);
         local_table[i + OBJECTS_INDEX_MINIMUM] = NULL;
     }
-    _Objects_Initialize_information(info);
+    /* The private IDs and inactive chain are already initialized above.
+     * Only the permanent root may publish this class globally: publishing
+     * a child leaves a dangling registry entry when that child is deleted. */
+    if (container->containerID == 1) {
+        _Objects_Initialize_information(info);
+    }
 }
 
 static void _IPC_Container_Initialize_POSIX_Message_Queue_Info(
@@ -400,7 +405,9 @@ static void _IPC_Container_Initialize_POSIX_Message_Queue_Info(
         _Chain_Append_unprotected(&info->Inactive, &obj->Node);
         local_table[i + OBJECTS_INDEX_MINIMUM] = NULL;
     }
-    _Objects_Initialize_information(info);
+    if (container->containerID == 1) {
+        _Objects_Initialize_information(info);
+    }
 }
 
 static Objects_Control *_IPC_Semaphore_Allocate_static(
@@ -507,7 +514,9 @@ static void _IPC_Container_Initialize_Semaphore_Info(
         local_table[i + OBJECTS_INDEX_MINIMUM] = NULL; 
     }
 
-    _Objects_Initialize_information(info);
+    if (container->containerID == 1) {
+        _Objects_Initialize_information(info);
+    }
 
     // printf("DEBUG: 信号量信息初始化完成，容器ID: %d，最大对象数: %d\n", 
     //        container->containerID, max_objects);

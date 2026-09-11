@@ -9,6 +9,7 @@
 #include <rtems/rtems/cgroup.h>
 #include <rtems/rtems_bsdnet.h>
 #include <rtems/score/container.h>
+#include <rtems/score/objectimpl.h>
 #include <rtems/score/threadimpl.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -25,6 +26,9 @@ static FailureStage failure_stage;
 static unsigned injection_hits;
 static rtems_id created_cgroup_id;
 static rtems_id root_queue;
+static int root_pid_references;
+static Objects_Information *initial_queue_info;
+static Objects_Information *initial_semaphore_info;
 
 static bool inject(FailureStage stage)
 {
@@ -198,6 +202,21 @@ static void check_resources(const rtems_resource_snapshot *before)
   CHECK(before->open_files == after.open_files);
 }
 
+static void check_object_registry(void)
+{
+  /* Check pointer identity before a snapshot can dereference a stale child
+   * entry.  Startup may register static pools after creating the root IPC
+   * namespace, so preserve the entries observed before the first child. */
+  rtems_test_assert(
+    _Objects_Information_table[OBJECTS_CLASSIC_API]
+      [OBJECTS_RTEMS_MESSAGE_QUEUES] == initial_queue_info
+  );
+  rtems_test_assert(
+    _Objects_Information_table[OBJECTS_CLASSIC_API]
+      [OBJECTS_RTEMS_SEMAPHORES] == initial_semaphore_info
+  );
+}
+
 static void check_root(const Container *before)
 {
   Container *root = rtems_container_get_root();
@@ -219,6 +238,8 @@ static void check_root(const Container *before)
   CHECK(root->netContainerListHead == before->netContainerListHead);
   CHECK(root->ipcContainerListHead == before->ipcContainerListHead);
   CHECK(self->container->pidContainer == root->pidContainer);
+  CHECK(rtems_pid_container_find_by_thread(self) == root->pidContainer);
+  CHECK(rtems_pid_container_get_rc(root->pidContainer) == root_pid_references);
   CHECK(self->container->utsContainer == root->utsContainer);
   CHECK(self->container->mntContainer == root->mntContainer);
   CHECK(self->container->netContainer == root->netContainer);
@@ -233,6 +254,7 @@ static void check_root(const Container *before)
     root_queue, &received, &size, RTEMS_NO_WAIT, 0
   ) == RTEMS_SUCCESSFUL);
   CHECK(size == sizeof(sent) && received == sent);
+  check_object_registry();
 }
 
 static rtems_task Init(rtems_task_argument arg)
@@ -260,12 +282,17 @@ static rtems_task Init(rtems_task_argument arg)
   ) == RTEMS_SUCCESSFUL);
   rtems_unified_container_config_initialize(&config);
   config.flags = RTEMS_UNIFIED_CONTAINER_ALL;
+  initial_queue_info = _Objects_Information_table[OBJECTS_CLASSIC_API]
+    [OBJECTS_RTEMS_MESSAGE_QUEUES];
+  initial_semaphore_info = _Objects_Information_table[OBJECTS_CLASSIC_API]
+    [OBJECTS_RTEMS_SEMAPHORES];
 
   /* Warm up lazy allocations, including the task's own namespace context,
    * before checking both rollback and complete recovery for leaks. */
   rtems_test_assert(rtems_unified_container_create(
     &config, &container
   ) == RTEMS_SUCCESSFUL);
+  check_object_registry();
   rtems_test_assert(rtems_unified_container_enter(
     container, _Thread_Get_executing()
   ) == RTEMS_SUCCESSFUL);
@@ -276,6 +303,7 @@ static rtems_task Init(rtems_task_argument arg)
   rtems_test_assert(rtems_unified_container_delete(container) == RTEMS_SUCCESSFUL);
   check_heap("warm-up cleanup");
   root_before = *rtems_container_get_root();
+  root_pid_references = rtems_pid_container_get_rc(root_before.pidContainer);
   check_root(&root_before);
   baseline_io = io_count();
 
@@ -307,6 +335,7 @@ static rtems_task Init(rtems_task_argument arg)
       rtems_test_assert(rtems_unified_container_create(
         &config, &container
       ) == RTEMS_SUCCESSFUL);
+      check_object_registry();
       check_heap("recovery creation");
       rtems_test_assert(container != NULL);
       puts("[recovery] entering container");
